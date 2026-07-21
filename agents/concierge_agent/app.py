@@ -3,8 +3,9 @@ FastAPI entrypoint for the concierge agent.
 
 Endpoints:
   GET    /health                                   - liveness
-  POST   /invocations                              - SSE stream of the agent response
-         body: { "prompt": str, "user_id": str, "itinerary_id": str }
+  POST   /agui                                      - AG-UI protocol endpoint (SSE)
+         AG-UI RunAgentInput; forwardedProps carry { user_id, itinerary_id }
+         and thread_id is "user_id:itinerary_id"
   GET    /api/itineraries/{user_id}                - list the user's itineraries
   POST   /api/itineraries/{user_id}                - create a named itinerary  { "name": str }
   GET    /api/itinerary/{user_id}/{itinerary_id}   - itinerary items
@@ -15,14 +16,13 @@ Endpoints:
   POST   /api/vic/onboard-card                     - secure card onboarding
 """
 
-import json
 import logging
 from contextlib import asynccontextmanager
 
 import uvicorn
+from agent_framework.ag_ui import add_agent_framework_fastapi_endpoint
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
 
 from concierge import Concierge
 from config import config
@@ -49,6 +49,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# AG-UI protocol endpoint. The adapter resolves the active (user_id, itinerary_id)
+# from each run's forwardedProps / thread_id and delegates to the shared harness
+# supervisor; conversation memory stays in Cosmos (keyed by thread_id).
+add_agent_framework_fastapi_endpoint(app, concierge.agui_agent(), path="/agui")
 
 
 @app.get("/health")
@@ -131,29 +136,6 @@ async def vic_onboard_card(request: Request):
             "cardholder_name": body.get("cardholder_name", ""),
         },
     )
-
-
-@app.post("/invocations")
-async def invocations(request: Request):
-    payload = await request.json()
-    prompt = payload.get("prompt")
-    user_id = payload.get("user_id")
-    # itinerary_id scopes the conversation thread + memory; accept legacy session_id.
-    itinerary_id = payload.get("itinerary_id") or payload.get("session_id")
-
-    if not all([prompt, user_id, itinerary_id]):
-        return {"error": "Missing required fields: prompt, user_id, itinerary_id"}
-
-    async def event_stream():
-        try:
-            async for chunk in concierge.stream(prompt, user_id, itinerary_id):
-                yield f"data: {json.dumps({'delta': chunk})}\n\n"
-            yield f"data: {json.dumps({'done': True})}\n\n"
-        except Exception as exc:  # pragma: no cover
-            logger.exception("stream error")
-            yield f"data: {json.dumps({'error': str(exc)})}\n\n"
-
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 if __name__ == "__main__":

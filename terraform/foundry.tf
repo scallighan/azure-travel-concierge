@@ -91,6 +91,76 @@ resource "azapi_resource" "chat_deployment" {
   }
 }
 
+# ---------------------------------------------------------------------------
+# Application Insights connection (enables agent/trace observability in the
+# Foundry portal). Foundry reads GenAI traces from the connected App Insights
+# resource; the connection is created at BOTH the account and project level
+# (only one App Insights may be connected to a project at a time).
+# ---------------------------------------------------------------------------
+resource "azapi_resource" "foundry_appinsights_connection" {
+  type                      = "Microsoft.CognitiveServices/accounts/connections@2025-06-01"
+  name                      = "${local.foundry_name}-appinsights"
+  parent_id                 = azapi_resource.ai_foundry.id
+  schema_validation_enabled = false
+
+  body = {
+    properties = {
+      category      = "AppInsights"
+      target        = azurerm_application_insights.this.id
+      authType      = "ApiKey"
+      isSharedToAll = true
+      credentials = {
+        key = azurerm_application_insights.this.connection_string
+      }
+      metadata = {
+        ApiType    = "Azure"
+        ResourceId = azurerm_application_insights.this.id
+      }
+    }
+  }
+}
+
+resource "azapi_resource" "project_appinsights_connection" {
+  type                      = "Microsoft.CognitiveServices/accounts/projects/connections@2025-06-01"
+  name                      = "appi-connection"
+  parent_id                 = azapi_resource.ai_foundry_project.id
+  schema_validation_enabled = false
+
+  body = {
+    properties = {
+      category      = "AppInsights"
+      target        = azurerm_application_insights.this.id
+      authType      = "ApiKey"
+      isSharedToAll = true
+      credentials = {
+        key = azurerm_application_insights.this.connection_string
+      }
+      metadata = {
+        ApiType    = "Azure"
+        ResourceId = azurerm_application_insights.this.id
+      }
+    }
+  }
+}
+
+# Let the Foundry project's managed identity read the traces it emits so the
+# portal's tracing/evaluation views can render GenAI content.
+# Log Analytics Reader + Monitoring Data Reader (the latter is required to read
+# GenAI trace content).
+resource "azurerm_role_assignment" "project_appinsights_log_reader" {
+  scope                = azurerm_application_insights.this.id
+  role_definition_name = "Log Analytics Reader"
+  principal_id         = azapi_resource.ai_foundry_project.output.identity.principalId
+  principal_type       = "ServicePrincipal"
+}
+
+resource "azurerm_role_assignment" "project_appinsights_monitoring_reader" {
+  scope                = azurerm_application_insights.this.id
+  role_definition_name = "Monitoring Data Reader"
+  principal_id         = azapi_resource.ai_foundry_project.output.identity.principalId
+  principal_type       = "ServicePrincipal"
+}
+
 resource "azapi_resource" "embedding_deployment" {
   depends_on = [azapi_resource.chat_deployment] # deployments must be created serially
 

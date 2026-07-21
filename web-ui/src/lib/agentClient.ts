@@ -1,3 +1,4 @@
+import { HttpAgent } from "@ag-ui/client";
 import { config } from "./config";
 
 export interface CartItem {
@@ -27,42 +28,40 @@ export interface ItinerarySummary {
 
 const base = config.agentUrl.replace(/\/$/, "");
 
-// Stream the agent's SSE response, invoking onDelta for each text chunk.
+function newId(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `msg-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+// Stream the agent's response over the AG-UI protocol, invoking onDelta for each
+// text chunk. A fresh HttpAgent is created per turn carrying only the new user
+// message; the server (CosmosHistoryProvider, keyed by threadId) owns history, so
+// we never resend the transcript. The (user_id, itinerary_id) travel in
+// forwardedProps and as the thread id "user_id:itinerary_id".
 export async function streamChat(
   prompt: string,
   userId: string,
   itineraryId: string,
   onDelta: (text: string) => void,
 ): Promise<void> {
-  const resp = await fetch(`${base}/invocations`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, user_id: userId, itinerary_id: itineraryId }),
+  const agent = new HttpAgent({
+    url: `${base}/agui`,
+    threadId: `${userId}:${itineraryId}`,
+    initialMessages: [{ id: newId(), role: "user", content: prompt }],
   });
-  if (!resp.body) throw new Error("No response body");
 
-  const reader = resp.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const events = buffer.split("\n\n");
-    buffer = events.pop() ?? "";
-    for (const evt of events) {
-      const line = evt.split("\n").find((l) => l.startsWith("data:"));
-      if (!line) continue;
-      try {
-        const data = JSON.parse(line.slice(5).trim());
-        if (data.delta) onDelta(data.delta);
-        if (data.error) throw new Error(data.error);
-      } catch {
-        /* ignore keep-alive / partial */
-      }
-    }
-  }
+  let runError: string | null = null;
+  await agent.runAgent(
+    { forwardedProps: { user_id: userId, itinerary_id: itineraryId } },
+    {
+      onTextMessageContentEvent: ({ event }) => onDelta(event.delta),
+      onRunErrorEvent: ({ event }) => {
+        runError = event.message ?? "Agent run failed";
+      },
+    },
+  );
+  if (runError) throw new Error(runError);
 }
 
 export async function getCart(userId: string): Promise<CartItem[]> {

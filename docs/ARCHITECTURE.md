@@ -12,11 +12,11 @@ blueprint, built on **Azure AI Foundry** and the **Microsoft Agent Framework**.
                           │   (React + Vite SPA)       │
                           │   MSAL / Entra sign-in     │
                           └─────────────┬─────────────┘
-                                        │ HTTPS (SSE stream + REST)
+                                        │ HTTPS (AG-UI protocol + REST)
                                         ▼
                      ┌──────────────────────────────────────┐
                      │   Concierge Agent (Container App)     │
-                     │   FastAPI  /invocations (SSE)         │
+                     │   FastAPI  /agui (AG-UI, SSE)         │
                      │           /api/itineraries /itinerary │
                      │           /api/cart /api/vic/*        │
                      │                                       │
@@ -97,6 +97,23 @@ Conversation memory is a `CosmosHistoryProvider` scoped per itinerary via
 `AgentSession(session_id=f"{user_id}:{itinerary_id}")`, so each **named
 itinerary** has its own independent chat thread.
 
+## Chat transport (AG-UI protocol)
+
+The SPA talks to the agent over the **AG-UI protocol**. The server exposes a
+single `POST /agui` endpoint via
+`agent_framework.ag_ui.add_agent_framework_fastapi_endpoint`, which streams
+AG-UI events (`RUN_STARTED` → `TEXT_MESSAGE_*` → `RUN_FINISHED`) over SSE. The
+web-ui uses `@ag-ui/client`'s `HttpAgent` (see `web-ui/src/lib/agentClient.ts`).
+
+Because the concierge builds a fresh harness supervisor per turn (to inject the
+user profile + active itinerary into the instructions), a thin
+`AGUISupervisor` adapter (`SupportsAgentRun`) resolves the active
+`(user_id, itinerary_id)` from each run's `forwardedProps` (the AG-UI
+`thread_id` is `"user_id:itinerary_id"`) and delegates to the shared harness.
+The client sends only the new user message each turn — Cosmos
+(`CosmosHistoryProvider`, keyed by `thread_id`) remains the single source of
+truth for history, so the transcript is never resent.
+
 MCP servers are reached over **Streamable HTTP** at `/mcp`. In Azure they run as
 internal-ingress Container Apps; the agent builds their internal FQDNs from
 Terraform-provided environment variables. `cart-tools` / `vic-mock` back the
@@ -115,15 +132,24 @@ primary path for travel lookups and payments.
 
 ## Payment data flow (card never touches the LLM)
 
-Mirroring the AWS sample's local-vic-server REST design, sensitive card data is
-kept **out of the model's context**:
+Sensitive card data is kept **out of the model's context**, and the payment path
+mirrors the real Visa Intelligent Commerce (VIC) agentic-commerce flow:
 
 1. The React UI collects card details in `VicCardModal` and `POST`s them to the
    agent's REST endpoint `POST /api/vic/onboard-card`.
 2. The agent forwards them via a **direct MCP call** (`mcp_direct.call_mcp_tool`)
-   to `cart-tools` → `vic-mock`, which returns a **token** (mock) and last-4.
+   to `cart-tools` → `vic-mock`, which enrolls the PAN with VTS
+   (`vic_enroll_pan`), provisions a **network token** (`vic_provision_token`),
+   and enrolls it for agentic commerce (`vic_enroll_card`). Only the token and
+   last-4 are returned.
 3. Only the token/last-4 is persisted; the LLM only ever sees "a card ending
    in 1111 is on file."
+4. At checkout, `cart-tools` creates a VIC **instruction + spending mandate**
+   scoped to the confirmed total (`vic_create_instruction`), retrieves
+   per-transaction credentials — which are **declined if they exceed the mandate**
+   (`vic_retrieve_credentials`) — and confirms the outcome
+   (`vic_confirm_transaction`). The mock keeps the real Visa field names and call
+   ordering but performs no real cryptography or settlement.
 
 ## Security
 
@@ -138,7 +164,9 @@ kept **out of the model's context**:
   endpoint connection is approved once before ingestion).
 - **Card data never reaches the LLM** — see the payment data flow above.
 - SPA users sign in with Entra ID (MSAL); mock-auth mode is available for demos.
-- Observability via Log Analytics + Application Insights.
+- **Observability**: Log Analytics + Application Insights. Application Insights is
+  connected to the Foundry account/project (`AppInsights` connection), so agent
+  runs and GenAI traces surface in the Foundry portal's tracing view.
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) to provision and run, and
 [AGENT_CAPABILITIES.md](AGENT_CAPABILITIES.md) for the full tool catalog.

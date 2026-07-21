@@ -115,14 +115,14 @@ fi
 
 echo
 echo "Stack is up:"
-echo "  agent          http://localhost:8080  (/health, /invocations)"
+echo "  agent          http://localhost:8080  (/health, /agui)"
 echo "  travel-tools   http://localhost:8081/mcp"
 echo "  cart-tools     http://localhost:8082/mcp"
 echo "  vic-mock      http://localhost:8083/mcp"
 [[ "${START_UI}" == true ]] && echo "  web-ui         http://localhost:5173"
 echo
-echo "Try:  curl -N localhost:8080/invocations -H 'content-type: application/json' \\"
-echo "        -d '{\"prompt\":\"Plan a 3-day trip to Rome\",\"user_id\":\"demo-user\",\"session_id\":\"s1\"}'"
+echo "Try:  curl -N localhost:8080/agui -H 'content-type: application/json' \\"
+echo "        -d '{\"threadId\":\"demo-user:s1\",\"messages\":[{\"id\":\"m1\",\"role\":\"user\",\"content\":\"Plan a 3-day trip to Rome\"}],\"forwardedProps\":{\"user_id\":\"demo-user\",\"itinerary_id\":\"s1\"}}'"
 echo
 echo "Tailing logs. Press Ctrl-C to stop."
 tail -n +1 -f "${LOG_DIR}"/*.log

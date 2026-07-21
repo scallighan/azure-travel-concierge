@@ -3,8 +3,10 @@ Cart Tools MCP Server
 =====================
 
 Cosmos-backed shopping cart, itinerary edits, payment-card onboarding and the
-two-step purchase flow. Payment tokenization/settlement is delegated to the
-**mock VIC MCP server** (server-to-server MCP call).
+purchase flow. Payment tokenization/settlement is delegated to the **mock VIC
+MCP server** (server-to-server MCP call), following the real Visa agentic
+commerce flow: VTS PAN enrollment + token provisioning for onboarding, and
+instruction + mandate -> credentials -> confirmation for checkout.
 
 Transport: MCP streamable-http on ${PORT}/mcp
 """
@@ -105,14 +107,17 @@ async def cart_onboard_card(
     cardholder_name: str = "",
 ) -> dict:
     """
-    Securely onboard a payment card. The PAN is tokenized by the VIC (mock)
-    service; only the token + last4 are stored. Args: user_id, card_number,
-    expiration_date, cvv, cardholder_name.
+    Securely onboard a payment card. Mirrors the real Visa flow: enroll the PAN
+    with VTS, provision a network token, then enroll that token for agentic
+    commerce (VIC). The PAN is never stored — only the network token + last4.
+    Args: user_id, card_number, expiration_date, cvv, cardholder_name.
     """
     if not ENABLE_VIC:
         return {"success": False, "error": "VIC integration disabled"}
-    token = await call_vic_tool(
-        "vic_onboard_card",
+
+    # Step 1 — VTS: enroll the PAN.
+    enrollment = await call_vic_tool(
+        "vic_enroll_pan",
         {
             "user_id": user_id,
             "card_number": card_number,
@@ -121,11 +126,31 @@ async def cart_onboard_card(
             "cardholder_name": cardholder_name,
         },
     )
+    pan_enrollment_id = enrollment.get("vPanEnrollmentID")
+    if not pan_enrollment_id:
+        return {"success": False, "error": "PAN enrollment failed"}
+    meta = enrollment.get("cardMetaData", {})
+
+    # Step 2 — VTS: provision a network token for AI-agent presentation.
+    provisioned = await call_vic_tool(
+        "vic_provision_token", {"v_pan_enrollment_id": pan_enrollment_id}
+    )
+    token_id = provisioned.get("vProvisionedTokenID")
+    if not token_id:
+        return {"success": False, "error": f"Token provisioning failed: {provisioned.get('error')}"}
+
+    # Step 3 — VIC: enroll the token for agentic commerce.
+    enrolled = await call_vic_tool("vic_enroll_card", {"v_provisioned_token_id": token_id})
+    if not enrolled.get("success"):
+        return {"success": False, "error": f"Card enrollment failed: {enrolled.get('error')}"}
+
     card = {
-        "vProvisionedTokenId": token.get("vProvisionedTokenId"),
-        "last4": token.get("last4"),
-        "card_brand": token.get("card_brand"),
-        "expiration_date": token.get("expiration_date"),
+        "vPanEnrollmentID": pan_enrollment_id,
+        "vProvisionedTokenId": token_id,
+        "last4": meta.get("last4"),
+        "card_brand": meta.get("cardBrand"),
+        "expiration_date": expiration_date,
+        "status": enrolled.get("status", "ACTIVE"),
     }
     db.set_payment_card(user_id, card)
     return {"success": True, "card": card}
@@ -165,7 +190,9 @@ def cart_request_purchase_confirmation(user_id: str) -> dict:
 @mcp.tool()
 async def cart_confirm_purchase(user_id: str) -> dict:
     """
-    Execute the purchase after the user confirms: authorize via VIC (mock),
+    Execute the purchase after the user confirms. Mirrors the real VIC agentic
+    checkout: create an instruction carrying a spending mandate, retrieve
+    per-transaction payment credentials, confirm the transaction outcome, then
     create an order and clear the cart. Args: user_id.
     """
     items = db.get_cart(user_id)
@@ -177,26 +204,68 @@ async def cart_confirm_purchase(user_id: str) -> dict:
     if ENABLE_VIC and not card:
         return {"success": False, "error": "No payment card on file"}
 
+    order_id = f"ORD-{datetime.now(timezone.utc):%Y%m%d}-{int(time.time()) % 100000}"
     payment_method = "Simulated"
+
     if ENABLE_VIC and card:
-        purchase = await call_vic_tool(
-            "vic_initiate_purchase",
+        token_id = card["vProvisionedTokenId"]
+        prompt = f"Travel Concierge booking: {len(items)} item(s) totaling ${total}"
+
+        # Step 1 — VIC: create an instruction with a spending mandate scoped to
+        # the cart total (the user's delegated authorization to the agent).
+        instruction = await call_vic_tool(
+            "vic_create_instruction",
             {
                 "user_id": user_id,
-                "provisioned_token_id": card["vProvisionedTokenId"],
+                "v_provisioned_token_id": token_id,
                 "amount": total,
-                "currency": "USD",
+                "currency_code": "840",
+                "prompt": prompt,
+                "merchant_name": "Travel Concierge",
             },
         )
-        if not purchase.get("success"):
-            return {"success": False, "error": f"Payment declined: {purchase.get('decline_reason')}"}
-        await call_vic_tool(
-            "vic_payment_credentials",
-            {"purchase_id": purchase["purchase_id"], "provisioned_token_id": card["vProvisionedTokenId"]},
+        if not instruction.get("success"):
+            return {"success": False, "error": f"Could not authorize payment: {instruction.get('error')}"}
+        instruction_id = instruction["instructionId"]
+
+        # Step 2 — VIC: retrieve payment credentials for the transaction. The
+        # mandate ceiling is enforced here.
+        creds = await call_vic_tool(
+            "vic_retrieve_credentials",
+            {
+                "instruction_id": instruction_id,
+                "v_provisioned_token_id": token_id,
+                "transactions": [
+                    {
+                        "merchant_name": "Travel Concierge",
+                        "amount": total,
+                        "currency_code": "840",
+                    }
+                ],
+            },
         )
+        approved = creds.get("credentials") or []
+        if not approved:
+            reason = (creds.get("declined") or [{}])[0].get("declineReason", creds.get("error", "declined"))
+            return {"success": False, "error": f"Payment declined: {reason}"}
+        transaction_reference_id = approved[0]["transactionReferenceId"]
+
+        # Step 3 — VIC: confirm the transaction outcome back to VIC.
+        confirmation = await call_vic_tool(
+            "vic_confirm_transaction",
+            {
+                "instruction_id": instruction_id,
+                "transaction_reference_id": transaction_reference_id,
+                "amount": total,
+                "currency_code": "840",
+                "transaction_status": "APPROVED",
+                "order_id": order_id,
+            },
+        )
+        if not confirmation.get("success"):
+            return {"success": False, "error": "Payment confirmation failed"}
         payment_method = f"{card['card_brand']} ending in {card['last4']}"
 
-    order_id = f"ORD-{datetime.now(timezone.utc):%Y%m%d}-{int(time.time()) % 100000}"
     order = {
         "order_id": order_id,
         "total_amount": total,

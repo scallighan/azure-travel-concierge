@@ -44,6 +44,67 @@ logger = logging.getLogger("concierge")
 SKILLS_DIR = Path(__file__).resolve().parent / "skills"
 
 
+class AGUISupervisor:
+    """Adapts the per-request Concierge supervisor to the AG-UI protocol.
+
+    ``add_agent_framework_fastapi_endpoint`` exposes a single ``SupportsAgentRun``.
+    Because the concierge builds a fresh harness supervisor per turn (to inject the
+    user profile + active itinerary into the instructions), this thin adapter
+    resolves the active ``(user_id, itinerary_id)`` from each AG-UI run and
+    delegates to the shared harness. The ids arrive via ``forwardedProps`` (and the
+    AG-UI ``thread_id`` is ``"user_id:itinerary_id"``). Conversation memory stays in
+    Cosmos, keyed by the ``AgentSession`` session_id (== the AG-UI thread_id).
+    """
+
+    def __init__(self, concierge: "Concierge") -> None:
+        self._c = concierge
+        self.id = "travel_concierge"
+        self.name = "travel_concierge"
+        self.description = "Azure Travel Concierge supervisor agent."
+
+    def create_session(self, *, session_id: str | None = None) -> AgentSession:
+        return AgentSession(session_id=session_id)
+
+    def get_session(self, service_session_id, *, session_id: str | None = None) -> AgentSession:
+        return AgentSession(service_session_id=service_session_id, session_id=session_id)
+
+    @staticmethod
+    def _resolve_ids(session: AgentSession | None) -> tuple[str, str]:
+        user_id = itinerary_id = None
+        meta = getattr(session, "metadata", None) or {}
+        props = meta.get("forwarded_props") if isinstance(meta, dict) else None
+        if isinstance(props, dict):
+            user_id = props.get("user_id") or props.get("userId")
+            itinerary_id = props.get("itinerary_id") or props.get("itineraryId")
+        # Fallback: the AG-UI thread_id is the session id ("user_id:itinerary_id").
+        sid = getattr(session, "session_id", None)
+        if (not user_id or not itinerary_id) and sid:
+            head, sep, tail = sid.rpartition(":")
+            if sep and head and tail:
+                user_id = user_id or head
+                itinerary_id = itinerary_id or tail
+        if not user_id or not itinerary_id:
+            raise ValueError(
+                "AG-UI run is missing user_id/itinerary_id "
+                "(expected in forwardedProps or thread_id 'user_id:itinerary_id')."
+            )
+        return user_id, itinerary_id
+
+    async def _build(self, session: AgentSession | None):
+        user_id, itinerary_id = self._resolve_ids(session)
+        profile = await self._c._user_profile_text(user_id)
+        itin_ctx = await self._c._itinerary_context(user_id, itinerary_id)
+        return self._c._supervisor(
+            SUPERVISOR_PROMPT.format(user_profile=profile, itinerary_context=itin_ctx)
+        )
+
+    async def run(self, messages=None, *, stream: bool = False, session: AgentSession | None = None, **_kwargs):
+        agent = await self._build(session)
+        if stream:
+            return agent.run(messages, stream=True, session=session)
+        return await agent.run(messages, stream=False, session=session)
+
+
 class Concierge:
     def __init__(self) -> None:
         self._stack = AsyncExitStack()
@@ -215,3 +276,7 @@ class Concierge:
         async for update in agent.run(prompt, stream=True, session=session):
             if getattr(update, "text", None):
                 yield update.text
+
+    def agui_agent(self) -> "AGUISupervisor":
+        """Return the AG-UI protocol adapter over this concierge (SupportsAgentRun)."""
+        return AGUISupervisor(self)

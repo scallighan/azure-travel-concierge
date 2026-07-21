@@ -60,6 +60,15 @@ service), the VNet + **private endpoints** for Cosmos/Storage/Key Vault, the
 **Static Web App**. All data-plane access is via a **User-Assigned Managed
 Identity** (no keys; Storage shared keys are disabled).
 
+> **Foundry tracing** — Application Insights is connected to the Foundry account
+> and project (an `AppInsights` connection, plus Log Analytics/Monitoring Data
+> Reader roles for the project identity), so agent runs and GenAI traces show up
+> in the Foundry portal's tracing view with no extra setup.
+
+> **vic-mock is stateful** — the mock VIC server keeps token/mandate state
+> in-memory to mirror the real VTS/VACP flow, so it must run as a **single
+> replica**. Do not scale `vic-mock-mcp` beyond one instance.
+
 > **Foundry Toolbox** — the travel skills and payments agent consume the
 > `travel-concierge-toolbox` (WebIQ + VIC tools). Set `foundry_toolbox_name` /
 > `foundry_toolbox_version` in `terraform.tfvars` (or leave the version blank to

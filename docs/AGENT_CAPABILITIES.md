@@ -12,7 +12,7 @@ separate sub-agents.
   `CosmosHistoryProvider` (`chatHistory` container).
 - Advertises the file-based skills below and loads each `SKILL.md` on demand
   (progressive disclosure), then performs it with the shared tools.
-- Streams responses to the UI as Server-Sent Events (`POST /invocations`).
+- Streams responses to the UI over the **AG-UI protocol** (`POST /agui`, SSE).
 
 ## File-based skills (`agents/concierge_agent/skills/*/SKILL.md`)
 
@@ -55,24 +55,46 @@ Toolbox's WebIQ tools for the harness skills.
 | `cart_clear_cart`                     | Empty the cart                                       |
 | `cart_update_itinerary_date`          | Reschedule an itinerary item                          |
 | `cart_check_user_has_payment_card`    | Whether a (tokenized) card is on file                |
-| `cart_onboard_card`                   | Tokenize a card via mock VIC (card bypasses the LLM)|
+| `cart_onboard_card`                   | Onboard a card via VIC (VTS enroll+provision, then VACP enroll); card bypasses the LLM |
 | `cart_get_vic_iframe_config`          | Config for the (mock) hosted card-capture iframe     |
 | `cart_request_purchase_confirmation`  | Step 1 — summarize order & ask user to confirm       |
-| `cart_confirm_purchase`               | Step 2 — finalize and tokenize payment (mock)        |
+| `cart_confirm_purchase`               | Step 2 — checkout under a VIC mandate (instruction → credentials → confirm) |
 
 ## Mock VIC MCP server (`vic-mock`)
 
-Stands in for the external VIC MCP server so the demo is fully self-contained.
-Returns deterministic mock tokens/credentials — **no real payment processing**.
+Stands in for the external VIC MCP server so the demo is fully self-contained. It
+mirrors the shape and flow of the real Visa reference agent backend
+([`visa/vic-reference-agent`](https://github.com/visa/vic-reference-agent)) —
+the same field names (`vProvisionedTokenID`, `instructionId`, `mandateId`, …),
+the same VTS → VACP call ordering, the same enums, and mandate spend-limit
+enforcement — but performs **no** real cryptography and **no** real payment
+processing. Card data is never persisted; only a synthetic network token is
+derived.
 
-| Tool                        | Description                                       |
-| --------------------------- | ------------------------------------------------- |
-| `vic_secure_token`         | Issue a short-lived (mock) session token          |
-| `vic_get_iframe_config`    | Hosted card-capture iframe configuration          |
-| `vic_onboard_card`         | Tokenize a card → returns token + last-4 + brand  |
-| `vic_initiate_purchase`    | Begin a (mock) payment authorization              |
-| `vic_payment_credentials`  | Return (mock) network payment credentials         |
-| `vic_health`               | Health probe                                      |
+**VTS — card enrollment & token provisioning**
+
+| Tool                   | Description                                                     |
+| ---------------------- | -------------------------------------------------------------- |
+| `vic_get_public_key`   | (Mock) MLE public key a UI would use to encrypt card data      |
+| `vic_secure_token`     | Issue a short-lived (mock) session/`x-pay-token`               |
+| `vic_get_iframe_config`| Hosted card-capture iframe configuration                        |
+| `vic_enroll_pan`       | Enroll a PAN with VTS → `vPanEnrollmentID` + `cardMetaData`      |
+| `vic_provision_token`  | Provision a network token → `vProvisionedTokenID` + `tokenInfo` |
+| `vic_enroll_card`      | Enroll the token for agentic commerce (VACP) → card `ACTIVE`     |
+| `vic_deprovision_token`| Delete a provisioned token                                      |
+
+**VIC / VACP — agentic commerce**
+
+| Tool                       | Description                                                          |
+| -------------------------- | ------------------------------------------------------------------- |
+| `vic_create_instruction`   | Create an instruction + spending **mandate** (declineThreshold)      |
+| `vic_retrieve_credentials` | Retrieve per-transaction credentials; enforces the mandate ceiling   |
+| `vic_confirm_transaction`  | Confirm the transaction outcome (APPROVED/DECLINED) back to VIC       |
+| `vic_health`               | Health probe                                                         |
+
+Onboarding runs `vic_enroll_pan` → `vic_provision_token` → `vic_enroll_card`;
+checkout runs `vic_create_instruction` → `vic_retrieve_credentials` →
+`vic_confirm_transaction`. `cart-tools` orchestrates both sequences.
 
 Checkout is deliberately **guarded**: the `checkout` skill only starts after the
 user explicitly confirms the order, card details never enter chat, and the actual
@@ -86,7 +108,7 @@ Card and structured-data operations bypass the model entirely:
 | Endpoint                                          | Purpose                                        |
 | ------------------------------------------------- | ---------------------------------------------- |
 | `GET    /health`                                  | Liveness + model/vic flags                     |
-| `POST   /invocations`                             | Chat (SSE streaming); body includes `itinerary_id` |
+| `POST   /agui`                                     | Chat over the AG-UI protocol (SSE); `forwardedProps`/`thread_id` carry `user_id`+`itinerary_id` |
 | `GET    /api/itineraries/{user_id}`               | List the user's named itineraries              |
 | `POST   /api/itineraries/{user_id}`               | Create a named itinerary                        |
 | `GET    /api/itinerary/{user_id}/{itinerary_id}`  | Itinerary items                                 |
