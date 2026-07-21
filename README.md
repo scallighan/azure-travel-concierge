@@ -24,7 +24,7 @@ mcp-servers/
 search-ingestion/         Push visa docs into Azure AI Search
 web-ui/                   React + Vite SPA (chat, cart, itinerary, card modal)
 terraform/                All Azure infrastructure as code
-scripts/                  build-images.sh, deploy.sh, seed_demo_data.py
+scripts/                  build-images.sh, deploy.sh, deploy-webui.sh, seed_demo_data.py
 docs/                     ARCHITECTURE / DEPLOYMENT / AGENT_CAPABILITIES
 ```
 
@@ -33,10 +33,12 @@ docs/                     ARCHITECTURE / DEPLOYMENT / AGENT_CAPABILITIES
 ```bash
 export GH_REPO="your-org/travel-concierge-azure"
 az login
-./scripts/deploy.sh          # build images -> terraform apply -> seed -> ingest
+./scripts/deploy.sh          # build images -> terraform apply -> seed -> ingest -> deploy UI
 ```
 
-Then build & deploy the UI (see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#4-build--deploy-the-web-ui)).
+`deploy.sh` also builds and publishes the React UI to the Static Web App. To
+(re)deploy just the UI later, run `./scripts/deploy-webui.sh` (see
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#4-build--deploy-the-web-ui)).
 
 ## Documentation
 

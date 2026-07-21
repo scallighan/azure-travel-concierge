@@ -65,3 +65,8 @@ output "webui_entra_client_id" {
 output "webui_entra_tenant_id" {
   value = data.azurerm_client_config.current.tenant_id
 }
+
+output "enable_vic_integration" {
+  description = "Whether the (mock) VIC payment integration is enabled in the agent and UI."
+  value       = var.enable_vic_integration
+}

@@ -76,7 +76,7 @@ def travel_search(query: str) -> str:
 @mcp.tool()
 def travel_places_search(query: str) -> dict:
     """
-    Find restaurants, attractions and points of interest with Google Maps links.
+    Find restaurants, attractions and points of interest with Bing Maps links.
 
     Args:
         query: e.g. "museums near the Eiffel Tower", "sushi in Tokyo".

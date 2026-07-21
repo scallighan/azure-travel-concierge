@@ -20,7 +20,7 @@ def _seeded(seed: str, lo: int, hi: int) -> int:
 
 def _maps_link(name: str, city: str = "") -> str:
     q = f"{name},{city}".strip(",").replace(" ", "+")
-    return f"https://www.google.com/maps/search/?api=1&query={q}"
+    return f"https://www.bing.com/maps?q={q}"
 
 
 # ---------------------------------------------------------------------------

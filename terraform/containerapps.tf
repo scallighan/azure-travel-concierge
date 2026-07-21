@@ -6,6 +6,7 @@ resource "azurerm_container_app_environment" "this" {
   location                   = azurerm_resource_group.this.location
   resource_group_name        = azurerm_resource_group.this.name
   log_analytics_workspace_id = azurerm_log_analytics_workspace.this.id
+  infrastructure_subnet_id   = azurerm_subnet.aca_infra.id
 
   workload_profile {
     name                  = "Consumption"
@@ -13,6 +14,11 @@ resource "azurerm_container_app_environment" "this" {
   }
 
   tags = local.tags
+  lifecycle {
+    ignore_changes = [
+      infrastructure_resource_group_name
+    ]
+  }
 }
 
 locals {
@@ -24,10 +30,12 @@ locals {
     APPLICATIONINSIGHTS_CONNECTION_STRING = azurerm_application_insights.this.connection_string
   }
 
-  # Internal FQDNs the agent uses to reach the MCP servers (MCP streamable-http)
-  travel_mcp_url = "https://aca-travel-mcp-${local.func_name}.${azurerm_container_app_environment.this.default_domain}/mcp"
-  cart_mcp_url   = "https://aca-cart-mcp-${local.func_name}.${azurerm_container_app_environment.this.default_domain}/mcp"
-  vic_mcp_url    = "https://aca-vic-mock-${local.func_name}.${azurerm_container_app_environment.this.default_domain}/mcp"
+  # Internal FQDNs the agent uses to reach the MCP servers (MCP streamable-http).
+  # Internal-ingress apps are addressable at "<app>.internal.<default_domain>",
+  # so use each app's actual ingress FQDN rather than composing it by hand.
+  travel_mcp_url = "https://${azurerm_container_app.travel_mcp.ingress[0].fqdn}/mcp"
+  cart_mcp_url   = "https://${azurerm_container_app.cart_mcp.ingress[0].fqdn}/mcp"
+  vic_mcp_url    = "https://${azurerm_container_app.vic_mock.ingress[0].fqdn}/mcp"
 }
 
 # ---------------------------------------------------------------------------

@@ -12,6 +12,9 @@ resource "azurerm_cosmosdb_account" "this" {
   # Entra ID (RBAC) auth for data plane; disable key auth
   local_authentication_disabled = true
 
+  # Access is via private endpoint only (subscription policy also enforces this).
+  public_network_access_enabled = false
+
   consistency_policy {
     consistency_level = "Session"
   }

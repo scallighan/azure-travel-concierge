@@ -46,6 +46,24 @@ variable "container_image_tag" {
   default = "latest"
 }
 
+variable "vnet_address_space" {
+  type        = list(string)
+  description = "Address space for the VNet that hosts the Container Apps environment and private endpoints."
+  default     = ["10.0.0.0/16"]
+}
+
+variable "aca_infra_subnet_prefix" {
+  type        = string
+  description = "CIDR for the Container Apps environment infrastructure subnet (min /27 for workload profiles environments)."
+  default     = "10.0.0.0/23"
+}
+
+variable "private_endpoint_subnet_prefix" {
+  type        = string
+  description = "CIDR for the subnet that hosts private endpoints (Cosmos DB, etc.)."
+  default     = "10.0.4.0/24"
+}
+
 variable "enable_vic_integration" {
   type        = bool
   description = "Feature flag to enable the (mock) VIC payment integration in the agent and UI."

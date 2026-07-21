@@ -76,6 +76,21 @@ python ../search-ingestion/ingest.py
 
 ## 4. Build & deploy the web UI
 
+A freshly-provisioned Static Web App stays in **"Waiting for deployment"** until
+content is pushed to it. Use the helper script, which reads all configuration
+from terraform outputs, builds the SPA, and publishes the bundle:
+
+```bash
+./scripts/deploy-webui.sh
+```
+
+It wires `VITE_AGENT_URL`, `VITE_ENTRA_CLIENT_ID`, and `VITE_ENTRA_TENANT_ID`
+from terraform outputs and picks real Entra auth when a client id is present
+(export `VITE_MOCK_AUTH=true` to force mock auth for a quick demo).
+
+<details>
+<summary>Manual equivalent</summary>
+
 ```bash
 cd web-ui
 cp .env.example .env
@@ -92,10 +107,13 @@ npx @azure/static-web-apps-cli deploy ./dist \
   --deployment-token "$(terraform -chdir=../terraform output -raw static_web_app_api_key)"
 ```
 
+</details>
+
 ## One-shot deploy
 
-`scripts/deploy.sh` runs steps 1–3 in sequence (build → apply → seed → ingest)
-and prints the agent URL, Static Web App hostname, and Entra client id:
+`scripts/deploy.sh` runs the full pipeline in sequence (build → apply → seed →
+ingest → deploy UI) and prints the agent URL, Static Web App hostname, and Entra
+client id:
 
 ```bash
 export GH_REPO="your-org/travel-concierge-azure"

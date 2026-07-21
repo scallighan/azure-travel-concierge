@@ -12,6 +12,7 @@ node_modules/
 web-ui/dist/
 web-ui/.env
 web-ui/.env.local
+web-ui/*.tsbuildinfo
 
 # Terraform
 terraform/.terraform/
