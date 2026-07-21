@@ -1,0 +1,101 @@
+# Local, all-in-one stack for the Azure Travel Concierge.
+#
+# Runs the four Python services (agent + 3 MCP servers) and, optionally, the
+# React web UI. `travel-tools` and `vic-mock` are fully self-contained mocks.
+# The agent and `cart-tools` still need real Azure AI Foundry + Cosmos DB
+# (the LLM and Cosmos cannot be mocked); see docs/DEPLOYMENT.md#local-development.
+#
+# Azure auth inside containers uses DefaultAzureCredential. Because the slim
+# Python images have no `az` CLI, provide a service principal via
+# AZURE_CLIENT_ID / AZURE_TENANT_ID / AZURE_CLIENT_SECRET in your .env
+# (EnvironmentCredential picks these up). For host-native `az login` auth,
+# use scripts/run-local.sh instead.
+#
+# Usage:
+#   cp .env.local.example .env    # then edit
+#   docker compose up --build                 # backends only
+#   docker compose --profile ui up --build    # backends + web UI
+
+services:
+  vic-mock:
+    build: ./mcp-servers/vic-mock
+    environment:
+      PORT: 8080
+    ports:
+      - "8083:8080"
+
+  travel-tools:
+    build: ./mcp-servers/travel-tools
+    environment:
+      PORT: 8080
+      # Optional: set KEY_VAULT_URI to hydrate real travel API keys; otherwise mock.
+      KEY_VAULT_URI: ${KEY_VAULT_URI:-}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID:-}
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID:-}
+      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET:-}
+    ports:
+      - "8081:8080"
+
+  cart-tools:
+    build: ./mcp-servers/cart-tools
+    environment:
+      PORT: 8080
+      COSMOS_ENDPOINT: ${COSMOS_ENDPOINT:?set COSMOS_ENDPOINT in .env}
+      COSMOS_DATABASE: ${COSMOS_DATABASE:-concierge}
+      VIC_MCP_URL: http://vic-mock:8080/mcp
+      ENABLE_VIC_INTEGRATION: ${ENABLE_VIC_INTEGRATION:-true}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID:-}
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID:-}
+      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET:-}
+    ports:
+      - "8082:8080"
+    depends_on:
+      - vic-mock
+
+  concierge-agent:
+    build: ./agents/concierge_agent
+    environment:
+      PORT: 8080
+      AZURE_AI_PROJECT_ENDPOINT: ${AZURE_AI_PROJECT_ENDPOINT:?set AZURE_AI_PROJECT_ENDPOINT in .env}
+      AZURE_AI_MODEL_DEPLOYMENT_NAME: ${AZURE_AI_MODEL_DEPLOYMENT_NAME:-gpt-4o}
+      TRAVEL_MCP_URL: http://travel-tools:8080/mcp
+      CART_MCP_URL: http://cart-tools:8080/mcp
+      COSMOS_ENDPOINT: ${COSMOS_ENDPOINT:?set COSMOS_ENDPOINT in .env}
+      COSMOS_DATABASE: ${COSMOS_DATABASE:-concierge}
+      # Optional: Azure AI Search for grounded visa guidance.
+      SEARCH_ENDPOINT: ${SEARCH_ENDPOINT:-}
+      SEARCH_INDEX_NAME: ${SEARCH_INDEX_NAME:-visa-documentation}
+      ENABLE_VIC_INTEGRATION: ${ENABLE_VIC_INTEGRATION:-true}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID:-}
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID:-}
+      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET:-}
+    ports:
+      - "8080:8080"
+    depends_on:
+      - travel-tools
+      - cart-tools
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # Optional React UI (mock auth). Enable with:  docker compose --profile ui up
+  web-ui:
+    image: node:20-alpine
+    profiles: ["ui"]
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    environment:
+      VITE_AGENT_URL: http://localhost:8080
+      VITE_MOCK_AUTH: "true"
+      VITE_ENABLE_VIC: ${ENABLE_VIC_INTEGRATION:-true}
+      VITE_DEMO_USER_ID: ${VITE_DEMO_USER_ID:-demo-user}
+    volumes:
+      - ./web-ui:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      - concierge-agent

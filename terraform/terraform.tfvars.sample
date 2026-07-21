@@ -1,0 +1,20 @@
+# Copy to terraform.tfvars and fill in.
+# Never commit real secrets.
+
+subscription_id = "00000000-0000-0000-0000-000000000000"
+location        = "EastUS2"
+gh_repo         = "your-org/travel-concierge-azure"
+
+# Optional overrides
+# chat_model              = "gpt-4o"
+# chat_model_version      = "2024-11-20"
+# embedding_model         = "text-embedding-3-small"
+# enable_vic_integration = true
+# container_image_tag     = "latest"
+
+# Reuse an existing Azure AI Search service instead of creating one (saves cost).
+# use_existing_search                 = true
+# existing_search_service_name        = "my-shared-search"
+# existing_search_resource_group_name = "my-shared-rg"   # blank = this deployment's RG
+# search_index_name                   = "visa-documentation"
+
