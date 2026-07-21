@@ -18,10 +18,11 @@ via the AgentSession session_id.
 import asyncio
 import logging
 from contextlib import AsyncExitStack
+from pathlib import Path
 
 from azure.identity.aio import DefaultAzureCredential
 
-from agent_framework import AgentSession, MCPStreamableHTTPTool, create_harness_agent
+from agent_framework import AgentSession, MCPStreamableHTTPTool, SkillsProvider, create_harness_agent
 from agent_framework.foundry import FoundryChatClient
 from agent_framework_azure_cosmos import CosmosHistoryProvider
 
@@ -31,10 +32,16 @@ from cosmos_manager import CosmosManager
 from payments_agent import PaymentsAgent, payments_agent, set_payments
 from prompts import PAYMENTS_AGENT_PROMPT, SUPERVISOR_PROMPT
 from search_tool import search_visa_documentation
-from specialists import build_specialist_tools
 from toolbox import build_toolbox_tool, resolve_version
 
 logger = logging.getLogger("concierge")
+
+# File-based Agent Harness skills live in ./skills (each subdirectory with a
+# SKILL.md: flights, hotel-booking, food-entertainment, checkout). They are
+# advertised to the supervisor and loaded on demand (progressive disclosure);
+# the supervisor performs them itself using the shared toolbox / web-search
+# tools passed to the harness.
+SKILLS_DIR = Path(__file__).resolve().parent / "skills"
 
 
 class Concierge:
@@ -47,7 +54,9 @@ class Concierge:
         self._history: CosmosHistoryProvider | None = None
         self._payments = PaymentsAgent()
         self._toolbox_version: str | None = None
+        self._skills: SkillsProvider | None = None
         self._tools: list = []
+        self._disable_web_search = True
 
     def _payment_subagent(self, tool):
         return self._client.as_agent(
@@ -69,7 +78,7 @@ class Concierge:
             credential=self._credential,
         )
 
-        # --- Foundry Toolbox (WebIQ + VIC) ---------------------------------
+        # --- Foundry Toolbox (WebIQ + VIC) — shared by the file-based skills
         toolbox_tool = None
         if config.toolbox_configured:
             try:
@@ -84,16 +93,15 @@ class Concierge:
                 toolbox_tool = None
                 self._toolbox_version = None
 
-        # --- specialist skills ---------------------------------------------
+        # The flights / hotel-booking / food-entertainment skills call these
+        # shared tools. With the toolbox we force WebIQ (disable the built-in
+        # web search); without it we let the harness provide web search.
+        skill_tools = []
         if toolbox_tool is not None:
-            skill_tools = [toolbox_tool]
+            skill_tools.append(toolbox_tool)
+            self._disable_web_search = True
         else:
-            try:
-                skill_tools = [self._client.get_web_search_tool()]
-            except Exception:
-                logger.warning("No web search tool available; skills will be limited.")
-                skill_tools = []
-        specialist_tools = build_specialist_tools(self._client, skill_tools=skill_tools)
+            self._disable_web_search = False
 
         # --- payments: Foundry-hosted, else Toolbox/cart fallback ----------
         set_payments(self._payments)
@@ -125,14 +133,17 @@ class Concierge:
         self.cosmos = CosmosManager()
         itinerary_tools.set_cosmos(self.cosmos)
 
+        # Discover the file-based skills once (SKILL.md under ./skills).
+        self._skills = SkillsProvider.from_paths(str(SKILLS_DIR))
+
         self._tools = [
-            *specialist_tools,
+            *skill_tools,
             *([payment_tool] if payment_tool else []),
             itinerary_tools.save_itinerary,
             search_visa_documentation,
         ]
-        logger.info("Concierge started (payments_foundry=%s, toolbox=%s).",
-                    self._payments.enabled, toolbox_tool is not None)
+        logger.info("Concierge started (payments_foundry=%s, toolbox=%s, skills_dir=%s).",
+                    self._payments.enabled, toolbox_tool is not None, SKILLS_DIR)
 
     async def stop(self) -> None:
         await self._stack.aclose()
@@ -171,8 +182,9 @@ class Concierge:
             name="travel_concierge",
             agent_instructions=instructions,
             tools=self._tools,
+            skills_provider=self._skills,
             history_provider=self._history,
-            disable_web_search=True,
+            disable_web_search=self._disable_web_search,
             disable_file_memory=True,
         )
 

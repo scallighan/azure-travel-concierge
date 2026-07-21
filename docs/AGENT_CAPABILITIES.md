@@ -1,34 +1,51 @@
 # Agent Capabilities
 
-The concierge is a **supervisor** agent (Microsoft Agent Framework, backed by an
-Azure AI Foundry `gpt-4o` deployment) that routes each request to one of two
-sub-agents. Sub-agents are exposed to the supervisor as callable tools; each
-sub-agent in turn calls MCP tools and Azure services.
+The concierge is a single **Agent Harness** supervisor (Microsoft Agent Framework
+1.12, backed by an Azure AI Foundry `gpt-5.4` deployment). It performs
+**file-based skills** itself using a shared set of tools, rather than routing to
+separate sub-agents.
 
-## Supervisor
+## Supervisor (Agent Harness)
 
-- Interprets user intent, maintains conversation memory per `user_id:session_id`
-  (`AgentSession`), and delegates to sub-agents.
+- Interprets user intent and maintains conversation memory **per named
+  itinerary** — `AgentSession(session_id="{user_id}:{itinerary_id}")` backed by a
+  `CosmosHistoryProvider` (`chatHistory` container).
+- Advertises the file-based skills below and loads each `SKILL.md` on demand
+  (progressive disclosure), then performs it with the shared tools.
 - Streams responses to the UI as Server-Sent Events (`POST /invocations`).
 
-## travel_assistant sub-agent
+## File-based skills (`agents/concierge_agent/skills/*/SKILL.md`)
 
-Destination research, trip planning, and visa guidance.
+| Skill                 | Purpose                                                          |
+| --------------------- | --------------------------------------------------------------- |
+| `flights`             | Search & compare flight options, schedules, fares, routes       |
+| `hotel-booking`       | Find & compare hotels/lodging (with Bing Maps links)            |
+| `food-entertainment`  | Restaurants, food experiences, attractions & things to do       |
+| `checkout`            | Guarded purchase workflow — delegates execution to payments     |
 
-| Tool (MCP `travel-tools`)             | Description                                       |
-| ------------------------------------- | ------------------------------------------------- |
-| `travel_search`                       | General destination / things-to-do research      |
-| `travel_places_search`                | Points of interest & attractions                  |
-| `travel_hotel_search`                 | Hotel availability by dates                        |
-| `travel_flight_search`                | Flight options between cities/dates                |
-| `search_visa_docs` (function tool)    | Grounded visa requirements from **Azure AI Search** |
+The travel skills gather real-world information through the **Foundry Toolbox**
+(`travel-concierge-toolbox`), which bundles the **WebIQ** web-intelligence tools;
+when the Toolbox is not configured the harness falls back to its built-in **web
+search** tool.
+
+## Shared tools
+
+| Tool                          | Description                                                         |
+| ----------------------------- | ------------------------------------------------------------------ |
+| Foundry Toolbox (MCP)         | WebIQ lookups for the travel skills + VIC payment tools (AAD-authed)|
+| `payments_agent`              | **Foundry-hosted** (portal-visible) checkout agent consuming the Toolbox's VIC tools; falls back to a local Toolbox/`cart-tools` sub-agent |
+| `save_itinerary`              | Persist the active itinerary's items to Cosmos DB                    |
+| `search_visa_documentation`   | Retrieval-grounded visa/entry answers from **Azure AI Search**      |
 
 Visa answers are **retrieval-grounded**: the `visa-documentation` AI Search index
 is populated from `search-ingestion/visa-documentation/*.md`.
 
-## cart_manager sub-agent
+## Supporting MCP servers
 
-Cart, itinerary, and the two-step checkout flow (persisted to Cosmos DB).
+`cart-tools` (cart/itinerary/checkout persistence + VIC) and `vic-mock` back the
+non-LLM REST endpoints and the payments fallback path. `travel-tools` (destination
+/ flight / hotel / places search) is still deployed but **superseded** by the
+Toolbox's WebIQ tools for the harness skills.
 
 | Tool (MCP `cart-tools`)               | Description                                          |
 | ------------------------------------- | ---------------------------------------------------- |
@@ -39,13 +56,9 @@ Cart, itinerary, and the two-step checkout flow (persisted to Cosmos DB).
 | `cart_update_itinerary_date`          | Reschedule an itinerary item                          |
 | `cart_check_user_has_payment_card`    | Whether a (tokenized) card is on file                |
 | `cart_onboard_card`                   | Tokenize a card via mock VIC (card bypasses the LLM)|
-| `cart_get_vic_iframe_config`         | Config for the (mock) hosted card-capture iframe     |
+| `cart_get_vic_iframe_config`          | Config for the (mock) hosted card-capture iframe     |
 | `cart_request_purchase_confirmation`  | Step 1 — summarize order & ask user to confirm       |
 | `cart_confirm_purchase`               | Step 2 — finalize and tokenize payment (mock)        |
-
-Checkout is deliberately **two-step**: the agent summarizes the order and asks
-for explicit confirmation before `cart_confirm_purchase` charges (mock).
-Purchase-confirmation notifications will be handled by WorkIQ.
 
 ## Mock VIC MCP server (`vic-mock`)
 
@@ -61,15 +74,24 @@ Returns deterministic mock tokens/credentials — **no real payment processing**
 | `vic_payment_credentials`  | Return (mock) network payment credentials         |
 | `vic_health`               | Health probe                                      |
 
+Checkout is deliberately **guarded**: the `checkout` skill only starts after the
+user explicitly confirms the order, card details never enter chat, and the actual
+charge is completed by the `payments_agent` tool (mock). Purchase-confirmation
+notifications will be handled by WorkIQ.
+
 ## REST endpoints (non-LLM, UI support)
 
 Card and structured-data operations bypass the model entirely:
 
-| Endpoint                              | Purpose                                     |
-| ------------------------------------- | ------------------------------------------- |
-| `GET  /health`                        | Liveness + model/vic flags                 |
-| `POST /invocations`                   | Chat (SSE streaming)                        |
-| `GET  /api/cart/{user_id}`            | Current cart (via `cart-tools` MCP)         |
-| `GET  /api/itinerary/{user_id}`       | Itinerary (via Cosmos directly)             |
-| `GET  /api/vic/iframe-config/{user}` | Mock card-capture iframe config             |
-| `POST /api/vic/onboard-card`         | Direct card tokenization (never sent to LLM)|
+| Endpoint                                          | Purpose                                        |
+| ------------------------------------------------- | ---------------------------------------------- |
+| `GET    /health`                                  | Liveness + model/vic flags                     |
+| `POST   /invocations`                             | Chat (SSE streaming); body includes `itinerary_id` |
+| `GET    /api/itineraries/{user_id}`               | List the user's named itineraries              |
+| `POST   /api/itineraries/{user_id}`               | Create a named itinerary                        |
+| `GET    /api/itinerary/{user_id}/{itinerary_id}`  | Itinerary items                                 |
+| `PATCH  /api/itinerary/{user_id}/{itinerary_id}`  | Rename an itinerary                             |
+| `DELETE /api/itinerary/{user_id}/{itinerary_id}`  | Delete an itinerary (+ its chat history)        |
+| `GET    /api/cart/{user_id}`                      | Current cart (via `cart-tools` MCP)             |
+| `GET    /api/vic/iframe-config/{user_id}`         | Mock card-capture iframe config                 |
+| `POST   /api/vic/onboard-card`                    | Direct card tokenization (never sent to LLM)    |

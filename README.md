@@ -5,8 +5,9 @@ An **Azure AI Foundry** re-implementation of the AWS Bedrock AgentCore
 blueprint, built entirely with Microsoft & Azure products:
 
 - **Microsoft Agent Framework 1.12** — the **Agent Harness** orchestrates
-  WebIQ-backed Flights, Hotel Booking and Food & Entertainment skills
-- **Azure AI Foundry** (`gpt-4o` + embeddings) as the model backbone, plus a
+  file-based skills (`flights`, `hotel-booking`, `food-entertainment`,
+  `checkout`), performed with the WebIQ-backed **Foundry Toolbox**
+- **Azure AI Foundry** (`gpt-5.4` + embeddings) as the model backbone, plus a
   **Foundry-hosted Payments agent** (visible in the portal) that consumes a
   **Foundry Toolbox** wrapping the mock VIC to complete purchases
 - **Azure AI Search** for retrieval-grounded visa guidance
@@ -21,6 +22,7 @@ blueprint, built entirely with Microsoft & Azure products:
 
 ```
 agents/concierge_agent/   Supervisor agent (FastAPI + Microsoft Agent Framework)
+  skills/                 File-based Harness skills (SKILL.md per subfolder)
 mcp-servers/
   travel-tools/           MCP: destination / flight / hotel search
   cart-tools/             MCP: cart, itinerary, checkout (Cosmos + VIC)
@@ -52,14 +54,21 @@ az login
 
 ## Design highlights
 
-- **Agent Harness (MAF 1.12)** — a single supervisor harness delegates to
-  specialist skills and a Foundry-hosted payments agent, with a persisted,
+- **Agent Harness (MAF 1.12)** — a single supervisor harness performs
+  **file-based skills** (progressive-disclosure `SKILL.md` files under
+  `agents/concierge_agent/skills/`) using the shared Foundry Toolbox, and
+  delegates purchases to a Foundry-hosted payments agent, with a persisted,
   per-itinerary conversation thread backed by `CosmosHistoryProvider`.
 - **Named multi-itineraries** — each user can create, switch between, and delete
   named itineraries; every itinerary has its own chat history and saved plan.
 - **Keyless by default** — Cosmos, Foundry, and AI Search have local auth
-  disabled; all access flows through a User-Assigned Managed Identity with Entra
-  RBAC role assignments.
+  disabled, and the Storage account has shared access keys disabled; all access
+  flows through a User-Assigned Managed Identity with Entra RBAC role
+  assignments.
+- **Private networking** — Cosmos DB, Storage and Key Vault have public network
+  access disabled and are reached over private endpoints from the VNet-injected
+  Container Apps environment. AI Search connects to Storage via a shared private
+  link (its private endpoint connection must be approved once before ingestion).
 - **Card data never reaches the LLM** — card capture is a direct REST → MCP path
   to the (mock) tokenization service; the model only ever sees a token / last-4.
 - **Fully mockable demo** — the mock VIC MCP server and deterministic travel

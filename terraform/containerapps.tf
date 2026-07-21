@@ -65,7 +65,8 @@ resource "azurerm_container_app" "vic_mock" {
   }
 
   ingress {
-    external_enabled = false
+    external_enabled = true
+    client_certificate_mode  = "ignore"
     target_port      = 8080
     transport        = "auto"
     traffic_weight {

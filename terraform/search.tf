@@ -49,6 +49,20 @@ resource "azurerm_role_assignment" "search_storage" {
   principal_id         = azurerm_search_service.this[0].identity[0].principal_id
 }
 
+# The storage account has public network access disabled, so the Search service
+# reaches it over a shared private link (indexer connects with its managed
+# identity). NOTE: the resulting private endpoint connection on the storage
+# account starts in "Pending" and must be approved once before ingestion, e.g.:
+#   az storage account private-endpoint-connection approve \
+#     --account-name <sa> --resource-group <rg> --name <connection-name>
+resource "azurerm_search_shared_private_link_service" "storage_blob" {
+  count              = var.use_existing_search ? 0 : 1
+  name               = "spl-blob-${local.func_name}"
+  search_service_id  = azurerm_search_service.this[0].id
+  subresource_name   = "blob"
+  target_resource_id = azurerm_storage_account.this.id
+}
+
 moved {
   from = azurerm_role_assignment.search_storage
   to   = azurerm_role_assignment.search_storage[0]

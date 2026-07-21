@@ -15,7 +15,8 @@ Terraform, container images on GHCR, and Azure Static Web Apps for the UI.
 | Python ≥ 3.11       | Seed + AI Search ingestion scripts                 |
 
 You also need:
-- An Azure subscription with quota for the chosen Foundry model (`gpt-4o`).
+- An Azure subscription with quota for the chosen Foundry model (`gpt-5.4` by
+  default; override via `chat_model`).
 - Permission to create Entra app registrations and role assignments.
 
 ## 1. Build & push container images
@@ -52,12 +53,25 @@ Key variables (`terraform.tfvars`):
   (and `existing_search_resource_group_name` if it lives in another RG).
 
 This creates: Resource Group, Log Analytics + App Insights, Storage, Key Vault,
-**AI Foundry** account/project + model deployments, **Cosmos DB** (4 containers),
-**AI Search** (unless reusing an existing service), the **Container Apps**
-environment + 4 apps, the **Entra SPA** app registration, and a **Static Web App**.
-All data-plane access is via a **User-Assigned Managed Identity** (no keys).
+**AI Foundry** account/project + model deployments, **Cosmos DB** (5 containers,
+incl. per-itinerary `chatHistory`), **AI Search** (unless reusing an existing
+service), the VNet + **private endpoints** for Cosmos/Storage/Key Vault, the
+**Container Apps** environment + 4 apps, the **Entra SPA** app registration, and a
+**Static Web App**. All data-plane access is via a **User-Assigned Managed
+Identity** (no keys; Storage shared keys are disabled).
+
+> **Foundry Toolbox** — the travel skills and payments agent consume the
+> `travel-concierge-toolbox` (WebIQ + VIC tools). Set `foundry_toolbox_name` /
+> `foundry_toolbox_version` in `terraform.tfvars` (or leave the version blank to
+> resolve the default at startup). Without it, skills fall back to web search and
+> payments to the local cart/VIC MCP.
 
 ## 3. Seed demo data & ingest visa docs
+
+> **Private networking:** Cosmos DB and Storage have public access disabled, so
+> these scripts must run from within (or peered to) the deployment VNet. Also
+> approve the AI Search → Storage shared private link once before ingesting:
+> `az storage account private-endpoint-connection approve --account-name <sa> --resource-group <rg> --name <connection-name>`.
 
 ```bash
 cd terraform

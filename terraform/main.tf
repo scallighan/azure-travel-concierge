@@ -45,17 +45,12 @@ resource "azurerm_storage_account" "this" {
 
   min_tls_version                 = "TLS1_2"
   allow_nested_items_to_be_public = false
-  public_network_access_enabled   = true
+  shared_access_key_enabled       = false
+  public_network_access_enabled   = false
 
   tags = local.tags
 }
 
-# Container holding visa documentation ingested into AI Search
-resource "azurerm_storage_container" "visa_docs" {
-  name                  = "visa-documentation"
-  storage_account_id    = azurerm_storage_account.this.id
-  container_access_type = "private"
-}
 
 # Let the deploying principal upload documents for ingestion
 resource "azurerm_role_assignment" "current_user_storage" {
@@ -75,6 +70,13 @@ resource "azurerm_key_vault" "this" {
   sku_name                   = "standard"
   rbac_authorization_enabled = true
   purge_protection_enabled   = false
+
+  # Reached only over the private endpoint (pe-kv-*); no public data-plane.
+  public_network_access_enabled = false
+  network_acls {
+    default_action = "Deny"
+    bypass         = "AzureServices"
+  }
 
   tags = local.tags
 }

@@ -35,10 +35,6 @@ output "storage_account_name" {
   value = azurerm_storage_account.this.name
 }
 
-output "visa_docs_container" {
-  value = azurerm_storage_container.visa_docs.name
-}
-
 output "key_vault_uri" {
   value = azurerm_key_vault.this.vault_uri
 }
