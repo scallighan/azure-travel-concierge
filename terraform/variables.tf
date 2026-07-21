@@ -73,5 +73,5 @@ variable "existing_search_resource_group_name" {
 variable "search_index_name" {
   type        = string
   description = "Name of the AI Search index used for the knowledge base."
-  default     = "visa-documentation"
+  default     = "travel-documentation"
 }
