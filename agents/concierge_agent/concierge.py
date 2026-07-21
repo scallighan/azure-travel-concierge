@@ -186,6 +186,14 @@ class Concierge:
             history_provider=self._history,
             disable_web_search=self._disable_web_search,
             disable_file_memory=True,
+            # FoundryChatClient stores conversation state server-side by default
+            # (STORES_BY_DEFAULT=True). Left as-is, the harness would treat the
+            # CosmosHistoryProvider as a write-only sink and resume from a Foundry
+            # server conversation instead -- but we pass a fresh AgentSession every
+            # turn, so that conversation is always empty and the agent loses all
+            # prior context. store=False makes the harness load and persist turn
+            # history through the CosmosHistoryProvider (keyed by session_id).
+            default_options={"store": False},
         )
 
     async def clear_history(self, user_id: str, itinerary_id: str) -> None:
