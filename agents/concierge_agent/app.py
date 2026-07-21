@@ -60,6 +60,12 @@ async def get_itinerary(user_id: str):
     return {"user_id": user_id, "items": items}
 
 
+@app.delete("/api/itinerary/{user_id}")
+async def clear_itinerary(user_id: str):
+    removed = await concierge.cosmos.clear_itinerary(user_id) if concierge.cosmos else 0
+    return {"user_id": user_id, "removed": removed}
+
+
 @app.get("/api/vic/iframe-config/{user_id}")
 async def vic_iframe_config(user_id: str):
     if not config.ENABLE_VIC:

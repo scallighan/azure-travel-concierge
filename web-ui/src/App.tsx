@@ -3,7 +3,7 @@ import { Chat } from "./components/Chat";
 import { SidePanel } from "./components/SidePanel";
 import { VicCardModal } from "./components/VicCardModal";
 import { config, DEMO_USER_ID } from "./lib/config";
-import { getCart, getItinerary, CartItem, ItineraryItem } from "./lib/agentClient";
+import { getCart, getItinerary, clearItinerary, CartItem, ItineraryItem } from "./lib/agentClient";
 
 export default function App({ userId, userName }: { userId?: string; userName?: string }) {
   const uid = userId ?? DEMO_USER_ID;
@@ -17,6 +17,14 @@ export default function App({ userId, userName }: { userId?: string; userName?: 
     getCart(uid).then(setCart).catch(() => {});
     getItinerary(uid).then(setItinerary).catch(() => {});
   }, [uid]);
+
+  const handleClearItinerary = useCallback(() => {
+    if (!window.confirm("Clear your entire itinerary? This can't be undone.")) return;
+    setItinerary([]);
+    clearItinerary(uid)
+      .catch(() => {})
+      .finally(refresh);
+  }, [uid, refresh]);
 
   useEffect(() => {
     refresh();
@@ -39,6 +47,7 @@ export default function App({ userId, userName }: { userId?: string; userName?: 
           cardOnFile={cardOnFile}
           vicEnabled={config.enableVic}
           onAddCard={() => setShowCard(true)}
+          onClearItinerary={handleClearItinerary}
         />
       </div>
       {showCard && (

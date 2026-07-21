@@ -209,6 +209,26 @@ html,
   margin: 18px 0 10px;
 }
 
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.btn-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
 .panel-card {
   background: var(--card);
   border: 1px solid var(--border);

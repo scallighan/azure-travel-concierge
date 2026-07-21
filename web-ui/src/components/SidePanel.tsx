@@ -4,19 +4,28 @@ export function SidePanel({
   itinerary,
   cart,
   onAddCard,
+  onClearItinerary,
   cardOnFile,
   vicEnabled,
 }: {
   itinerary: ItineraryItem[];
   cart: CartItem[];
   onAddCard: () => void;
+  onClearItinerary: () => void;
   cardOnFile: string | null;
   vicEnabled: boolean;
 }) {
   return (
     <aside className="side-panel">
       <section>
-        <h4>🧭 Itinerary</h4>
+        <div className="section-head">
+          <h4>🧭 Itinerary</h4>
+          {itinerary.length > 0 && (
+            <button className="btn-link" onClick={onClearItinerary}>
+              Clear
+            </button>
+          )}
+        </div>
         {itinerary.length === 0 && <p className="empty">Nothing planned yet.</p>}
         {itinerary.map((it, i) => (
           <div className="panel-card" key={i}>

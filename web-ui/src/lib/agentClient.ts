@@ -69,6 +69,12 @@ export async function getItinerary(userId: string): Promise<ItineraryItem[]> {
   return (data.items as ItineraryItem[]) ?? [];
 }
 
+export async function clearItinerary(userId: string): Promise<number> {
+  const r = await fetch(`${base}/api/itinerary/${userId}`, { method: "DELETE" });
+  const data = await r.json();
+  return (data.removed as number) ?? 0;
+}
+
 export async function onboardCard(payload: {
   user_id: string;
   card_number: string;
