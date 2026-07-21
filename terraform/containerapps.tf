@@ -253,12 +253,32 @@ resource "azurerm_container_app" "agent" {
         value = azurerm_cosmosdb_sql_database.this.name
       }
       env {
+        name  = "COSMOS_ITINERARY_CONTAINER"
+        value = "itinerary"
+      }
+      env {
+        name  = "COSMOS_HISTORY_CONTAINER"
+        value = "chatHistory"
+      }
+      env {
         name  = "TRAVEL_MCP_URL"
         value = local.travel_mcp_url
       }
       env {
         name  = "CART_MCP_URL"
         value = local.cart_mcp_url
+      }
+      env {
+        name  = "PAYMENTS_AGENT_NAME"
+        value = var.payments_agent_name
+      }
+      env {
+        name  = "FOUNDRY_TOOLBOX_NAME"
+        value = var.foundry_toolbox_name
+      }
+      env {
+        name  = "FOUNDRY_TOOLBOX_VERSION"
+        value = var.foundry_toolbox_version
       }
       env {
         name  = "SEARCH_ENDPOINT"

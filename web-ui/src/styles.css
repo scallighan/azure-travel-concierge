@@ -58,6 +58,22 @@ html,
   font-size: 12px;
 }
 
+.itin-switcher {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.itin-select {
+  background: var(--bg);
+  color: inherit;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 14px;
+  max-width: 260px;
+}
+
 .layout {
   flex: 1;
   display: flex;

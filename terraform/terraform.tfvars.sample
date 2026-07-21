@@ -18,3 +18,11 @@ gh_repo         = "your-org/travel-concierge-azure"
 # existing_search_resource_group_name = "my-shared-rg"   # blank = this deployment's RG
 # search_index_name                   = "visa-documentation"
 
+# --- Foundry Toolbox (travel-concierge-toolbox) ------------------------------
+# Bundles WebIQ (web intelligence) + the VIC payment tools behind one MCP
+# endpoint. The skills and the Foundry-hosted Payments agent consume it.
+# foundry_toolbox_name    = "travel-concierge-toolbox"
+# foundry_toolbox_version = "13"   # blank = resolve the default version at startup
+# payments_agent_name     = "travel-payments-agent"
+
+

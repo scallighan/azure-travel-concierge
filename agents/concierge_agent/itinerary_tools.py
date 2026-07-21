@@ -1,5 +1,5 @@
 """
-Itinerary function tools exposed to the supervisor agent. They operate on the
+Itinerary function tool exposed to the harness supervisor. Operates on the
 process-wide Cosmos manager set at startup via ``set_cosmos``.
 """
 
@@ -19,23 +19,14 @@ def set_cosmos(manager: CosmosManager) -> None:
 
 async def save_itinerary(
     user_id: Annotated[str, Field(description="The user's unique id.")],
+    itinerary_id: Annotated[str, Field(description="The id of the active itinerary to write to.")],
     items: Annotated[
         list[dict],
-        Field(description="Itinerary items. Each: type, title, location, price, date, day, description."),
+        Field(description="The complete desired itinerary items. Each: type, title, location, price, date, day, description."),
     ],
 ) -> str:
-    """Persist a complete itinerary for the user so the UI can render it."""
+    """Persist the full itinerary for the active itinerary_id so the UI can render it."""
     if _cosmos is None:
         return "Itinerary store unavailable."
-    count = await _cosmos.save_itinerary(user_id, items)
-    return f"Saved {count} itinerary item(s)."
-
-
-async def clear_itinerary(
-    user_id: Annotated[str, Field(description="The user's unique id.")],
-) -> str:
-    """Remove all saved itinerary items for the user."""
-    if _cosmos is None:
-        return "Itinerary store unavailable."
-    count = await _cosmos.clear_itinerary(user_id)
-    return f"Cleared {count} itinerary item(s)."
+    count = await _cosmos.save_items(user_id, itinerary_id, items)
+    return f"Saved {count} item(s) to itinerary {itinerary_id}."

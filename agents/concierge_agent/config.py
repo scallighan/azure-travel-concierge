@@ -8,19 +8,39 @@ class Config:
     PROJECT_ENDPOINT = os.getenv("AZURE_AI_PROJECT_ENDPOINT", "")
     MODEL_DEPLOYMENT = os.getenv("AZURE_AI_MODEL_DEPLOYMENT_NAME", "gpt-4o")
 
-    # MCP servers
+    # MCP servers (internal Container Apps FQDNs). CART_MCP_URL still backs the
+    # direct REST->MCP cart/card endpoints in app.py (and the local payments
+    # fallback when no Foundry Toolbox is configured).
     TRAVEL_MCP_URL = os.getenv("TRAVEL_MCP_URL", "")
     CART_MCP_URL = os.getenv("CART_MCP_URL", "")
+
+    # Foundry Toolbox (travel-concierge-toolbox) exposes WebIQ (web intelligence)
+    # and the VIC payment tools through one MCP-compatible endpoint. The skills
+    # and the payments agent consume it; auth is centralized (AAD bearer).
+    FOUNDRY_TOOLBOX_NAME = os.getenv("FOUNDRY_TOOLBOX_NAME", "travel-concierge-toolbox")
+    # Optional pin; when blank the default version is resolved at startup.
+    FOUNDRY_TOOLBOX_VERSION = os.getenv("FOUNDRY_TOOLBOX_VERSION", "")
+
+    # Foundry-hosted Payments agent (visible in the Foundry portal).
+    PAYMENTS_AGENT_NAME = os.getenv("PAYMENTS_AGENT_NAME", "travel-payments-agent")
 
     # Cosmos DB
     COSMOS_ENDPOINT = os.getenv("COSMOS_ENDPOINT", "")
     COSMOS_DATABASE = os.getenv("COSMOS_DATABASE", "concierge")
+    # Container holding one document per named itinerary (partition /userId).
+    COSMOS_ITINERARY_CONTAINER = os.getenv("COSMOS_ITINERARY_CONTAINER", "itinerary")
+    # Container backing the MAF CosmosHistoryProvider (partition /session_id).
+    COSMOS_HISTORY_CONTAINER = os.getenv("COSMOS_HISTORY_CONTAINER", "chatHistory")
 
     # Azure AI Search (Visa documentation knowledge base)
     SEARCH_ENDPOINT = os.getenv("SEARCH_ENDPOINT", "")
     SEARCH_INDEX_NAME = os.getenv("SEARCH_INDEX_NAME", "visa-documentation")
 
     ENABLE_VIC = os.getenv("ENABLE_VIC_INTEGRATION", "true").lower() == "true"
+
+    @property
+    def toolbox_configured(self) -> bool:
+        return bool(self.PROJECT_ENDPOINT and self.FOUNDRY_TOOLBOX_NAME)
 
 
 config = Config()

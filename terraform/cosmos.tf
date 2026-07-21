@@ -43,6 +43,8 @@ locals {
     cart         = "/userId"
     itinerary    = "/userId"
     orders       = "/userId"
+    # Backs the MAF CosmosHistoryProvider (per-itinerary chat memory).
+    chatHistory = "/session_id"
   }
 }
 

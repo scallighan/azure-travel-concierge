@@ -2,9 +2,17 @@
 FastAPI entrypoint for the concierge agent.
 
 Endpoints:
-  GET  /health           - liveness
-  POST /invocations      - Server-Sent Events stream of the agent response
-      body: { "prompt": str, "user_id": str, "session_id": str }
+  GET    /health                                   - liveness
+  POST   /invocations                              - SSE stream of the agent response
+         body: { "prompt": str, "user_id": str, "itinerary_id": str }
+  GET    /api/itineraries/{user_id}                - list the user's itineraries
+  POST   /api/itineraries/{user_id}                - create a named itinerary  { "name": str }
+  GET    /api/itinerary/{user_id}/{itinerary_id}   - itinerary items
+  PATCH  /api/itinerary/{user_id}/{itinerary_id}   - rename                    { "name": str }
+  DELETE /api/itinerary/{user_id}/{itinerary_id}   - delete (+ its chat history)
+  GET    /api/cart/{user_id}                       - cart contents
+  GET    /api/vic/iframe-config/{user_id}          - VIC iframe config
+  POST   /api/vic/onboard-card                     - secure card onboarding
 """
 
 import json
@@ -48,22 +56,52 @@ async def health():
     return {"status": "ok", "model": config.MODEL_DEPLOYMENT, "vic": config.ENABLE_VIC}
 
 
+# --- Itinerary management (call Cosmos directly, no LLM) ---------------------
+@app.get("/api/itineraries/{user_id}")
+async def list_itineraries(user_id: str):
+    items = await concierge.cosmos.list_itineraries(user_id) if concierge.cosmos else []
+    return {"user_id": user_id, "itineraries": items}
+
+
+@app.post("/api/itineraries/{user_id}")
+async def create_itinerary(user_id: str, request: Request):
+    body = await request.json()
+    name = (body.get("name") or "Untitled itinerary").strip()
+    itinerary = await concierge.cosmos.create_itinerary(user_id, name) if concierge.cosmos else None
+    return {"user_id": user_id, "itinerary": itinerary}
+
+
+@app.get("/api/itinerary/{user_id}/{itinerary_id}")
+async def get_itinerary(user_id: str, itinerary_id: str):
+    doc = await concierge.cosmos.get_itinerary(user_id, itinerary_id) if concierge.cosmos else None
+    return {
+        "user_id": user_id,
+        "itinerary_id": itinerary_id,
+        "name": doc.get("name") if doc else None,
+        "items": doc.get("items", []) if doc else [],
+    }
+
+
+@app.patch("/api/itinerary/{user_id}/{itinerary_id}")
+async def rename_itinerary(user_id: str, itinerary_id: str, request: Request):
+    body = await request.json()
+    name = (body.get("name") or "").strip()
+    ok = await concierge.cosmos.rename_itinerary(user_id, itinerary_id, name) if concierge.cosmos else False
+    return {"user_id": user_id, "itinerary_id": itinerary_id, "renamed": ok}
+
+
+@app.delete("/api/itinerary/{user_id}/{itinerary_id}")
+async def delete_itinerary(user_id: str, itinerary_id: str):
+    ok = await concierge.cosmos.delete_itinerary(user_id, itinerary_id) if concierge.cosmos else False
+    if ok:
+        await concierge.clear_history(user_id, itinerary_id)
+    return {"user_id": user_id, "itinerary_id": itinerary_id, "deleted": ok}
+
+
 # --- UI support endpoints (call MCP/Cosmos directly, no LLM) -----------------
 @app.get("/api/cart/{user_id}")
 async def get_cart(user_id: str):
     return await call_mcp_tool(config.CART_MCP_URL, "cart_view_cart", {"user_id": user_id})
-
-
-@app.get("/api/itinerary/{user_id}")
-async def get_itinerary(user_id: str):
-    items = await concierge.cosmos.get_itinerary(user_id) if concierge.cosmos else []
-    return {"user_id": user_id, "items": items}
-
-
-@app.delete("/api/itinerary/{user_id}")
-async def clear_itinerary(user_id: str):
-    removed = await concierge.cosmos.clear_itinerary(user_id) if concierge.cosmos else 0
-    return {"user_id": user_id, "removed": removed}
 
 
 @app.get("/api/vic/iframe-config/{user_id}")
@@ -100,14 +138,15 @@ async def invocations(request: Request):
     payload = await request.json()
     prompt = payload.get("prompt")
     user_id = payload.get("user_id")
-    session_id = payload.get("session_id")
+    # itinerary_id scopes the conversation thread + memory; accept legacy session_id.
+    itinerary_id = payload.get("itinerary_id") or payload.get("session_id")
 
-    if not all([prompt, user_id, session_id]):
-        return {"error": "Missing required fields: prompt, user_id, session_id"}
+    if not all([prompt, user_id, itinerary_id]):
+        return {"error": "Missing required fields: prompt, user_id, itinerary_id"}
 
     async def event_stream():
         try:
-            async for chunk in concierge.stream(prompt, user_id, session_id):
+            async for chunk in concierge.stream(prompt, user_id, itinerary_id):
                 yield f"data: {json.dumps({'delta': chunk})}\n\n"
             yield f"data: {json.dumps({'done': True})}\n\n"
         except Exception as exc:  # pragma: no cover

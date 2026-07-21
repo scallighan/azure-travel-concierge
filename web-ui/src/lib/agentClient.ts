@@ -17,19 +17,27 @@ export interface ItineraryItem {
   description?: string;
 }
 
+export interface ItinerarySummary {
+  id: string;
+  name: string;
+  itemCount: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 const base = config.agentUrl.replace(/\/$/, "");
 
 // Stream the agent's SSE response, invoking onDelta for each text chunk.
 export async function streamChat(
   prompt: string,
   userId: string,
-  sessionId: string,
+  itineraryId: string,
   onDelta: (text: string) => void,
 ): Promise<void> {
   const resp = await fetch(`${base}/invocations`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, user_id: userId, session_id: sessionId }),
+    body: JSON.stringify({ prompt, user_id: userId, itinerary_id: itineraryId }),
   });
   if (!resp.body) throw new Error("No response body");
 
@@ -63,16 +71,42 @@ export async function getCart(userId: string): Promise<CartItem[]> {
   return (data.items as CartItem[]) ?? [];
 }
 
-export async function getItinerary(userId: string): Promise<ItineraryItem[]> {
-  const r = await fetch(`${base}/api/itinerary/${userId}`);
+export async function getItinerary(userId: string, itineraryId: string): Promise<ItineraryItem[]> {
+  const r = await fetch(`${base}/api/itinerary/${userId}/${itineraryId}`);
   const data = await r.json();
   return (data.items as ItineraryItem[]) ?? [];
 }
 
-export async function clearItinerary(userId: string): Promise<number> {
-  const r = await fetch(`${base}/api/itinerary/${userId}`, { method: "DELETE" });
+export async function listItineraries(userId: string): Promise<ItinerarySummary[]> {
+  const r = await fetch(`${base}/api/itineraries/${userId}`);
   const data = await r.json();
-  return (data.removed as number) ?? 0;
+  return (data.itineraries as ItinerarySummary[]) ?? [];
+}
+
+export async function createItinerary(userId: string, name: string): Promise<ItinerarySummary | null> {
+  const r = await fetch(`${base}/api/itineraries/${userId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  const data = await r.json();
+  return (data.itinerary as ItinerarySummary) ?? null;
+}
+
+export async function renameItinerary(userId: string, itineraryId: string, name: string): Promise<boolean> {
+  const r = await fetch(`${base}/api/itinerary/${userId}/${itineraryId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  const data = await r.json();
+  return Boolean(data.renamed);
+}
+
+export async function deleteItinerary(userId: string, itineraryId: string): Promise<boolean> {
+  const r = await fetch(`${base}/api/itinerary/${userId}/${itineraryId}`, { method: "DELETE" });
+  const data = await r.json();
+  return Boolean(data.deleted);
 }
 
 export async function onboardCard(payload: {

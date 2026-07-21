@@ -93,3 +93,27 @@ variable "search_index_name" {
   description = "Name of the AI Search index used for the knowledge base."
   default     = "travel-documentation"
 }
+
+# ---------------------------------------------------------------------------
+# Foundry Toolbox (travel-concierge-toolbox) + Foundry-hosted Payments agent
+# ---------------------------------------------------------------------------
+# The travel-concierge-toolbox bundles WebIQ (web intelligence) and the VIC
+# payment tools behind one MCP endpoint. The skills and the Payments agent
+# consume it with centralized AAD auth.
+variable "foundry_toolbox_name" {
+  type        = string
+  description = "Name of the Foundry Toolbox the skills and Payments agent consume."
+  default     = "travel-concierge-toolbox"
+}
+
+variable "foundry_toolbox_version" {
+  type        = string
+  description = "Toolbox version to pin. When blank the default version is resolved at startup."
+  default     = ""
+}
+
+variable "payments_agent_name" {
+  type        = string
+  description = "Name of the Foundry-hosted Payments agent (visible in the Foundry portal)."
+  default     = "travel-payments-agent"
+}

@@ -1,6 +1,17 @@
 """
-Cosmos DB access for the supervisor: itinerary management + user-profile lookup.
-Entra ID data-plane auth (async DefaultAzureCredential).
+Cosmos DB access for the concierge: named multi-itinerary management + user
+profiles. Entra ID data-plane auth (async DefaultAzureCredential).
+
+Each itinerary is stored as a single document in the ``itinerary`` container:
+
+    {
+        "id": "<itineraryId>",          # partitioned by userId
+        "userId": "<userId>",
+        "kind": "itinerary",
+        "name": "Tokyo Spring 2026",
+        "items": [ {type,title,location,price,date,day,description}, ... ],
+        "createdAt": "...", "updatedAt": "..."
+    }
 """
 
 import logging
@@ -19,18 +30,30 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _summary(doc: dict) -> dict:
+    """Lightweight itinerary descriptor for list views."""
+    return {
+        "id": doc["id"],
+        "name": doc.get("name", "Untitled itinerary"),
+        "itemCount": len(doc.get("items", [])),
+        "createdAt": doc.get("createdAt"),
+        "updatedAt": doc.get("updatedAt"),
+    }
+
+
 class CosmosManager:
     def __init__(self) -> None:
         self._credential = DefaultAzureCredential()
         self._client = CosmosClient(config.COSMOS_ENDPOINT, credential=self._credential)
         self._db = self._client.get_database_client(config.COSMOS_DATABASE)
-        self.itinerary = self._db.get_container_client("itinerary")
+        self.itinerary = self._db.get_container_client(config.COSMOS_ITINERARY_CONTAINER)
         self.profiles = self._db.get_container_client("userProfiles")
 
     async def close(self) -> None:
         await self._client.close()
         await self._credential.close()
 
+    # --- user profile -------------------------------------------------------
     async def get_user_profile(self, user_id: str) -> dict | None:
         try:
             return await self.profiles.read_item(user_id, partition_key=user_id)
@@ -44,37 +67,83 @@ class CosmosManager:
             ]
             return items[0] if items else None
 
-    async def save_itinerary(self, user_id: str, items: list[dict]) -> int:
-        count = 0
-        for item in items:
-            doc = {
-                "id": str(uuid.uuid4()),
-                "userId": user_id,
-                "type": item.get("type", "activity"),
-                "title": item.get("title", ""),
-                "location": item.get("location", ""),
-                "price": item.get("price", ""),
-                "date": item.get("date", ""),
-                "day": item.get("day", 0),
-                "description": item.get("description", ""),
-                "createdAt": _now(),
-            }
-            await self.itinerary.upsert_item(doc)
-            count += 1
-        return count
-
-    async def get_itinerary(self, user_id: str) -> list[dict]:
-        return [
+    # --- itinerary CRUD -----------------------------------------------------
+    async def list_itineraries(self, user_id: str) -> list[dict]:
+        docs = [
             i
             async for i in self.itinerary.query_items(
-                query="SELECT * FROM c WHERE c.userId = @u",
+                query="SELECT * FROM c WHERE c.userId = @u AND c.kind = 'itinerary'",
                 parameters=[{"name": "@u", "value": user_id}],
             )
         ]
+        docs.sort(key=lambda d: d.get("createdAt", ""))
+        return [_summary(d) for d in docs]
 
-    async def clear_itinerary(self, user_id: str) -> int:
-        removed = 0
-        for item in await self.get_itinerary(user_id):
-            await self.itinerary.delete_item(item["id"], partition_key=user_id)
-            removed += 1
-        return removed
+    async def create_itinerary(self, user_id: str, name: str) -> dict:
+        doc = {
+            "id": str(uuid.uuid4()),
+            "userId": user_id,
+            "kind": "itinerary",
+            "name": name or "Untitled itinerary",
+            "items": [],
+            "createdAt": _now(),
+            "updatedAt": _now(),
+        }
+        await self.itinerary.upsert_item(doc)
+        return _summary(doc)
+
+    async def get_itinerary(self, user_id: str, itinerary_id: str) -> dict | None:
+        try:
+            doc = await self.itinerary.read_item(itinerary_id, partition_key=user_id)
+        except Exception:
+            return None
+        if doc.get("kind") != "itinerary" or doc.get("userId") != user_id:
+            return None
+        return doc
+
+    async def rename_itinerary(self, user_id: str, itinerary_id: str, name: str) -> bool:
+        doc = await self.get_itinerary(user_id, itinerary_id)
+        if not doc:
+            return False
+        doc["name"] = name
+        doc["updatedAt"] = _now()
+        await self.itinerary.upsert_item(doc)
+        return True
+
+    async def delete_itinerary(self, user_id: str, itinerary_id: str) -> bool:
+        if not await self.get_itinerary(user_id, itinerary_id):
+            return False
+        await self.itinerary.delete_item(itinerary_id, partition_key=user_id)
+        return True
+
+    async def save_items(self, user_id: str, itinerary_id: str, items: list[dict]) -> int:
+        """Replace the items of an itinerary with a normalized list."""
+        doc = await self.get_itinerary(user_id, itinerary_id)
+        if not doc:
+            # Auto-create so the agent never loses a plan if the id drifted.
+            doc = {
+                "id": itinerary_id,
+                "userId": user_id,
+                "kind": "itinerary",
+                "name": "Untitled itinerary",
+                "createdAt": _now(),
+            }
+        doc["items"] = [
+            {
+                "type": it.get("type", "activity"),
+                "title": it.get("title", ""),
+                "location": it.get("location", ""),
+                "price": it.get("price", ""),
+                "date": it.get("date", ""),
+                "day": it.get("day", 0),
+                "description": it.get("description", ""),
+            }
+            for it in items
+        ]
+        doc["updatedAt"] = _now()
+        await self.itinerary.upsert_item(doc)
+        return len(doc["items"])
+
+    async def get_items(self, user_id: str, itinerary_id: str) -> list[dict]:
+        doc = await self.get_itinerary(user_id, itinerary_id)
+        return doc.get("items", []) if doc else []
