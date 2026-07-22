@@ -116,7 +116,17 @@ export function Chat({
           </div>
         )}
         {messages.map((m, i) => (
-          <Message key={i} msg={m} />
+          <Message
+            key={i}
+            msg={m}
+            interactive={
+              m.role === "assistant" &&
+              i === messages.length - 1 &&
+              !busy &&
+              pending.length === 0
+            }
+            onSelectOption={send}
+          />
         ))}
         {pending.length > 0 && (
           <div className="approval-card">

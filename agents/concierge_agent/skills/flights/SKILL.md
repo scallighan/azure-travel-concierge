@@ -45,11 +45,11 @@ proceed with the toolbox.
    for it. Pull actual airline, flight numbers, times and fares — browse a page when
    you need specifics.
 3. **Present a numbered, selectable shortlist.** Show **2–4** real options as a
-   numbered list (1, 2, 3…), each with: airline **and flight number(s)**,
-   departure/arrival airports and local times, number of stops (and layover if
-   connecting), approximate fare, and a booking link when available. End by asking
-   the traveler to reply with the number of the flight they want (or ask for
-   different options).
+   numbered list (1, 2, 3…). Each option MUST show: airline **and flight number(s)**,
+   **departure time**, **arrival time** (with airports; note +1 day if it lands the
+   next day), number of stops (and layover if connecting), and the **cost/fare**. Add
+   a booking link when available. End by asking the traveler to reply with the number
+   of the flight they want (or ask for different options).
 4. **Hand back the selection.** Do **not** purchase anything — purchasing is the
    checkout skill's job. Once the traveler picks a numbered option, summarize that
    specific flight so the concierge can save it to the active itinerary as a
@@ -57,6 +57,7 @@ proceed with the toolbox.
 
 ## Output
 
-A concise, **numbered** list of real flight options the user can choose from. Lead
-with your recommended pick and one sentence on why, then invite the traveler to
-select by number.
+Keep it simple (ELI5): a short **numbered** list, one line per flight. Each line MUST
+include the **departure time**, the **arrival time**, and the **cost** (plus airline +
+flight no. and stops). No long intros. End with one line: your top pick and why
+(≤1 sentence), then "Reply with the number you want."

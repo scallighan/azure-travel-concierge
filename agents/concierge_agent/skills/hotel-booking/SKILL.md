@@ -41,5 +41,6 @@ because an approval is pending — wait for it, then proceed.
 
 ## Output
 
-A concise, structured shortlist. Lead with your recommended pick and one sentence
-on why. Every property must carry a Bing Maps link.
+Keep it simple (ELI5): a short shortlist, one line per hotel (name, area, price/night,
+rating, Bing Maps link). No long intros. End with one line: your top pick and why
+(≤1 sentence). Every property must carry a Bing Maps link.

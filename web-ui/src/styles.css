@@ -120,6 +120,35 @@ html,
   border-color: var(--accent);
 }
 
+.quick-replies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.quick-reply {
+  background: var(--card);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  padding: 7px 13px;
+  border-radius: 16px;
+  font-size: 0.9em;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.quick-reply:hover:not(:disabled) {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.quick-reply:disabled {
+  opacity: 0.5;
+  cursor: default;
+  border-color: var(--border);
+}
+
 .msg {
   display: flex;
   gap: 12px;
@@ -164,6 +193,68 @@ html,
 
 .msg-body p {
   margin: 6px 0;
+}
+
+.msg-body table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 10px 0;
+  font-size: 0.92em;
+  display: block;
+  overflow-x: auto;
+}
+
+.msg-body th,
+.msg-body td {
+  border: 1px solid var(--border);
+  padding: 7px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.msg-body th {
+  background: var(--panel);
+  font-weight: 600;
+}
+
+.msg-body tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.msg-body code {
+  background: var(--panel);
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 0.9em;
+}
+
+.msg-body pre {
+  background: var(--panel);
+  padding: 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.msg-body pre code {
+  background: none;
+  padding: 0;
+}
+
+.msg-body blockquote {
+  margin: 8px 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--border);
+  color: var(--muted);
+}
+
+.msg-body a {
+  color: var(--accent);
+}
+
+.msg-body ul,
+.msg-body ol {
+  margin: 6px 0;
+  padding-left: 22px;
 }
 
 .chat-input {

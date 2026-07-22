@@ -256,8 +256,8 @@ class Concierge:
 
         # --- payments: Foundry-hosted, else Toolbox/cart fallback ----------
         set_payments(self._payments)
-        if self._toolbox_version:
-            await self._payments.start(self._toolbox_version)
+        if config.PROJECT_ENDPOINT:
+            await self._payments.start()
 
         if self._payments.enabled:
             payment_tool = payments_agent

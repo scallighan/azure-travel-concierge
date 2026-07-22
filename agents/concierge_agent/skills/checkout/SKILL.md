@@ -59,5 +59,6 @@ exceed the mandate is declined.
 
 ## Output
 
-A short confirmation with the order id and total, or a clear next step (e.g. "add a
-card to continue" or a decline reason). Never expose card data.
+Keep it simple (ELI5): one short confirmation with the order id and total, or one
+clear next step (e.g. "Add a card to continue" or a plain decline reason). Never
+expose card data.

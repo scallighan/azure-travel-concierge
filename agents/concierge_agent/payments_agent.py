@@ -39,16 +39,31 @@ class PaymentsAgent:
     def enabled(self) -> bool:
         return self.agent_name is not None
 
-    def _toolbox_tool(self, version: str):
-        from azure.ai.projects.models import MCPToolboxTool
+    def _vic_tool(self):
+        """Direct MCP tool for the mock VIC payment service.
 
-        return MCPToolboxTool(
-            server_label=config.FOUNDRY_TOOLBOX_NAME,
-            server_url=toolbox_url(version),
+        Points at the ``vic-mock`` Foundry connection so all payment traffic
+        flows through the mock VIC MCP server (not the shared Toolbox).
+        """
+        from azure.ai.projects.models import MCPTool
+
+        server_url = config.VIC_MCP_URL
+        if not server_url:
+            conn = self._project.connections.get(config.VIC_MCP_CONNECTION)
+            server_url = getattr(conn, "target", None)
+        if not server_url:
+            raise RuntimeError(
+                f"Could not resolve MCP URL for connection '{config.VIC_MCP_CONNECTION}'."
+            )
+
+        return MCPTool(
+            server_label="vic_mock",
+            server_url=server_url,
+            project_connection_id=config.VIC_MCP_CONNECTION,
             require_approval="never",
         )
 
-    def _register(self, version: str) -> None:
+    def _register(self) -> None:
         """Synchronous Foundry registration (run in a worker thread)."""
         from azure.ai.projects import AIProjectClient
         from azure.ai.projects.models import PromptAgentDefinition
@@ -66,19 +81,19 @@ class PaymentsAgent:
             definition=PromptAgentDefinition(
                 model=config.MODEL_DEPLOYMENT,
                 instructions=PAYMENTS_AGENT_PROMPT,
-                tools=[self._toolbox_tool(version)],
+                tools=[self._vic_tool()],
             ),
         )
         self.agent_name = agent.name
         self.agent_version = agent.version
         logger.info("Foundry payments agent registered: %s v%s", agent.name, agent.version)
 
-    async def start(self, version: str) -> None:
-        if not config.toolbox_configured:
-            logger.warning("Foundry payments agent not started (Toolbox not configured).")
+    async def start(self) -> None:
+        if not config.PROJECT_ENDPOINT:
+            logger.warning("Foundry payments agent not started (PROJECT_ENDPOINT not set).")
             return
         try:
-            await asyncio.to_thread(self._register, version)
+            await asyncio.to_thread(self._register)
         except Exception:  # pragma: no cover
             logger.exception("Failed to register Foundry payments agent; falling back to local.")
             self.agent_name = None

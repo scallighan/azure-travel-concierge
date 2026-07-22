@@ -23,6 +23,13 @@ class Config:
 
     # Foundry-hosted Payments agent (visible in the Foundry portal).
     PAYMENTS_AGENT_NAME = os.getenv("PAYMENTS_AGENT_NAME", "travel-payments-agent")
+    # The Foundry project connection (RemoteTool/MCP) for the mock VIC payment
+    # service. The payments agent talks to this directly rather than through the
+    # shared Toolbox, so all payment traffic flows through the mock VIC server.
+    VIC_MCP_CONNECTION = os.getenv("VIC_MCP_CONNECTION", "vic-mock")
+    # Optional explicit override for the mock VIC MCP URL; when blank it is
+    # resolved from the connection's target at startup.
+    VIC_MCP_URL = os.getenv("VIC_MCP_URL", "")
 
     # Cosmos DB
     COSMOS_ENDPOINT = os.getenv("COSMOS_ENDPOINT", "")
