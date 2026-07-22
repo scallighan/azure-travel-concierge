@@ -106,9 +106,16 @@ class PaymentsAgent:
             await asyncio.to_thread(self._credential.close)
 
     def _invoke_sync(self, prompt: str) -> str:
+        # PromptAgents require the version in the agent_reference — without it the
+        # Responses API resolves to a default/older version whose definition can
+        # differ from the one this container just registered. Pin the exact
+        # version we created so checkout always runs the current definition.
+        agent_reference = {"name": self.agent_name, "type": "agent_reference"}
+        if self.agent_version:
+            agent_reference["version"] = self.agent_version
         response = self._openai.responses.create(
             input=prompt,
-            extra_body={"agent_reference": {"name": self.agent_name, "type": "agent_reference"}},
+            extra_body={"agent_reference": agent_reference},
         )
         return getattr(response, "output_text", "") or ""
 
