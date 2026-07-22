@@ -6,7 +6,7 @@ class Config:
 
     # Azure AI Foundry
     PROJECT_ENDPOINT = os.getenv("AZURE_AI_PROJECT_ENDPOINT", "")
-    MODEL_DEPLOYMENT = os.getenv("AZURE_AI_MODEL_DEPLOYMENT_NAME", "gpt-4o")
+    MODEL_DEPLOYMENT = os.getenv("AZURE_AI_MODEL_DEPLOYMENT_NAME", "gpt-5.4")
 
     # MCP servers (internal Container Apps FQDNs). CART_MCP_URL still backs the
     # direct REST->MCP cart/card endpoints in app.py (and the local payments
@@ -31,6 +31,15 @@ class Config:
     # resolved from the connection's target at startup.
     VIC_MCP_URL = os.getenv("VIC_MCP_URL", "")
 
+    # WebIQ web-intelligence MCP. The skills connect to WebIQ DIRECTLY (rather
+    # than through the Foundry Toolbox's tool_search/call_tool discovery layer)
+    # so they get richer, more current results: web, browse, places, news, etc.
+    # Auth is a static API key sent as a custom header (from the Foundry `webiq`
+    # connection's CustomKeys, provisioned to the container via Terraform).
+    WEBIQ_MCP_URL = os.getenv("WEBIQ_MCP_URL", "https://api.microsoft.ai/v3/mcp")
+    WEBIQ_API_KEY = os.getenv("WEBIQ_API_KEY", "")
+    WEBIQ_API_KEY_HEADER = os.getenv("WEBIQ_API_KEY_HEADER", "x-apikey")
+
     # Cosmos DB
     COSMOS_ENDPOINT = os.getenv("COSMOS_ENDPOINT", "")
     COSMOS_DATABASE = os.getenv("COSMOS_DATABASE", "concierge")
@@ -44,6 +53,10 @@ class Config:
     @property
     def toolbox_configured(self) -> bool:
         return bool(self.PROJECT_ENDPOINT and self.FOUNDRY_TOOLBOX_NAME)
+
+    @property
+    def webiq_configured(self) -> bool:
+        return bool(self.WEBIQ_MCP_URL and self.WEBIQ_API_KEY)
 
 
 config = Config()

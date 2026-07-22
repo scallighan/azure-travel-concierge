@@ -31,7 +31,7 @@ from config import config
 from cosmos_manager import CosmosManager
 from payments_agent import PaymentsAgent, payments_agent, set_payments
 from prompts import PAYMENTS_AGENT_PROMPT, SUPERVISOR_PROMPT
-from toolbox import build_toolbox_tool, resolve_version
+from webiq import build_webiq_tool
 
 logger = logging.getLogger("concierge")
 
@@ -229,40 +229,36 @@ class Concierge:
             credential=self._credential,
         )
 
-        # --- Foundry Toolbox (WebIQ + VIC) — shared by the file-based skills
-        toolbox_tool = None
-        if config.toolbox_configured:
+        # --- WebIQ web-intelligence (direct MCP) — shared by the file skills
+        # The skills connect to WebIQ directly (web / browse / places / news …)
+        # rather than through the Toolbox discovery layer, for richer, more
+        # current results.
+        webiq_tool = None
+        if config.webiq_configured:
             try:
-                self._toolbox_version = await asyncio.to_thread(resolve_version)
-                toolbox_tool = await self._stack.enter_async_context(
-                    build_toolbox_tool(self._toolbox_version)
-                )
-                logger.info("Connected Foundry Toolbox %s v%s",
-                            config.FOUNDRY_TOOLBOX_NAME, self._toolbox_version)
+                webiq_tool = await self._stack.enter_async_context(build_webiq_tool())
+                logger.info("Connected WebIQ MCP at %s", config.WEBIQ_MCP_URL)
             except Exception:
-                logger.exception("Failed to connect Foundry Toolbox; falling back to web search.")
-                toolbox_tool = None
-                self._toolbox_version = None
+                logger.exception("Failed to connect WebIQ; falling back to web search.")
+                webiq_tool = None
 
         # The flights / hotel-booking / food-entertainment skills call these
-        # shared tools. With the toolbox we force WebIQ (disable the built-in
-        # web search); without it we let the harness provide web search.
+        # shared tools. With WebIQ we force it (disable the built-in web search);
+        # without it we let the harness provide web search.
         skill_tools = []
-        if toolbox_tool is not None:
-            skill_tools.append(toolbox_tool)
+        if webiq_tool is not None:
+            skill_tools.append(webiq_tool)
             self._disable_web_search = True
         else:
             self._disable_web_search = False
 
-        # --- payments: Foundry-hosted, else Toolbox/cart fallback ----------
+        # --- payments: Foundry-hosted (vic-mock), else cart fallback --------
         set_payments(self._payments)
         if config.PROJECT_ENDPOINT:
             await self._payments.start()
 
         if self._payments.enabled:
             payment_tool = payments_agent
-        elif toolbox_tool is not None:
-            payment_tool = self._payment_subagent(toolbox_tool)
         elif config.CART_MCP_URL:
             cart_tool = await self._stack.enter_async_context(
                 MCPStreamableHTTPTool(name="cart_tools", url=config.CART_MCP_URL)
@@ -293,8 +289,8 @@ class Concierge:
             itinerary_tools.save_itinerary,
             itinerary_tools.check_payment_card,
         ]
-        logger.info("Concierge started (payments_foundry=%s, toolbox=%s, skills_dir=%s).",
-                    self._payments.enabled, toolbox_tool is not None, SKILLS_DIR)
+        logger.info("Concierge started (payments_foundry=%s, webiq=%s, skills_dir=%s).",
+                    self._payments.enabled, webiq_tool is not None, SKILLS_DIR)
 
     async def stop(self) -> None:
         await self._stack.aclose()

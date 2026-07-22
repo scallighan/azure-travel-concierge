@@ -11,28 +11,23 @@ itinerary.
 
 ## Tools to use
 
-Use the **travel-concierge-toolbox** for real-world flight data. The toolbox
-exposes a discovery interface, not one tool per site:
+Use the **WebIQ** web-intelligence tools directly for real-world flight data —
+call them by name (no discovery step):
 
-1. Call **`tool_search`** with a broad query like `web`, `webiq`, or `search`
-   to find the web-intelligence tools (do **not** search for `flights` or
-   `airline` — those return "no tools matched", which is expected and does **not**
-   mean the toolbox is down).
-2. Use **`webiq___web`** (query search) to find current routes, airlines and fares,
-   e.g. `nonstop flights ORD to HND October 2025 economy`.
-3. Use **`webiq___browse`** (URL fetch) to open an airline or aggregator page and
-   read specific flight numbers, times and prices.
+1. **`web`** — search for current routes, airlines and fares, e.g.
+   `nonstop flights ORD to HND October 2025 economy`.
+2. **`browse`** — open an airline or aggregator page to read specific flight
+   numbers, departure/arrival times and prices.
 
-Only if the toolbox itself fails to connect should you fall back to the built-in
+Only if WebIQ itself fails to connect should you fall back to the built-in
 **web search** tool. **Never invent fares or flight numbers — always look them up.**
 
 ### A pending approval is not a failure
 
-Loading this skill or calling a tool may require a one-time human approval. A tool
-call that is awaiting approval is **normal HITL behavior, not an error**. Do **not**
-describe the toolbox or skill loader as "unavailable" and do **not** silently fall
-back to web search because an approval is pending — wait for the approval, then
-proceed with the toolbox.
+Calling a tool may require a one-time human approval. A tool call that is awaiting
+approval is **normal HITL behavior, not an error**. Do **not** describe WebIQ or the
+skill loader as "unavailable" and do **not** silently fall back to web search because
+an approval is pending — wait for the approval, then proceed.
 
 ## Method
 

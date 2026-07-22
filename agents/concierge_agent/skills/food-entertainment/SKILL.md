@@ -13,16 +13,18 @@ never purchased or checked out; they are simply added to the itinerary as
 
 ## Tools to use
 
-Use the **travel-concierge-toolbox** tools (WebIQ web intelligence) when available
-to find current restaurants, attractions and events; otherwise fall back to the
-built-in **web search** tool. Do not invent venues — look them up.
+Use the **WebIQ** web-intelligence tools directly — `web` (search) and `browse`
+(open a page) to find current restaurants, attractions and events, and `places`
+for exact names/addresses (and accurate Bing Maps links). Only if WebIQ fails to
+connect, fall back to the built-in **web search** tool. Do not invent venues —
+look them up.
 
 ## Method
 
 1. **Understand the trip.** Destination, dates, and traveler interests (cuisine,
    budget, family-friendly, nightlife, culture, outdoors). Infer from the itinerary
    where possible.
-2. **Search.** Query the toolbox / web tools across dining and activities.
+2. **Search.** Query the WebIQ `web`/`browse`/`places` tools across dining and activities.
 3. **Recommend.** Keep it light — suggest **1–2 dining picks per day** and a couple
    of must-do activities, not an exhaustive list. For each item include: name,
    category (restaurant / attraction / activity), price level, a **≤6-word** why, and

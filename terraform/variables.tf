@@ -27,7 +27,7 @@ variable "chat_model_version" {
 variable "chat_model_capacity" {
   type        = number
   description = "TPM capacity (in thousands) for the chat model deployment."
-  default     = 50
+  default     = 750
 }
 
 variable "embedding_model" {
@@ -116,4 +116,17 @@ variable "payments_agent_name" {
   type        = string
   description = "Name of the Foundry-hosted Payments agent (visible in the Foundry portal)."
   default     = "travel-payments-agent"
+}
+
+variable "webiq_mcp_url" {
+  type        = string
+  description = "WebIQ web-intelligence MCP endpoint the skills connect to directly (web/browse/places/...)."
+  default     = "https://api.microsoft.ai/v3/mcp"
+}
+
+variable "webiq_api_key" {
+  type        = string
+  description = "API key for the WebIQ MCP endpoint (sent as the x-apikey header). Backs the Foundry 'webiq' connection and the agent's direct WebIQ connection."
+  sensitive   = true
+  default     = ""
 }

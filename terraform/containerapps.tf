@@ -65,10 +65,10 @@ resource "azurerm_container_app" "vic_mock" {
   }
 
   ingress {
-    external_enabled = true
-    client_certificate_mode  = "ignore"
-    target_port      = 8080
-    transport        = "auto"
+    external_enabled        = true
+    client_certificate_mode = "ignore"
+    target_port             = 8080
+    transport               = "auto"
     traffic_weight {
       latest_revision = true
       percentage      = 100
@@ -274,6 +274,18 @@ resource "azurerm_container_app" "agent" {
         value = var.payments_agent_name
       }
       env {
+        name  = "VIC_MCP_CONNECTION"
+        value = azapi_resource.vic_mock_connection.name
+      }
+      env {
+        name  = "WEBIQ_MCP_URL"
+        value = var.webiq_mcp_url
+      }
+      env {
+        name        = "WEBIQ_API_KEY"
+        secret_name = "webiq-api-key"
+      }
+      env {
         name  = "FOUNDRY_TOOLBOX_NAME"
         value = var.foundry_toolbox_name
       }
@@ -318,6 +330,11 @@ resource "azurerm_container_app" "agent" {
   identity {
     type         = "UserAssigned"
     identity_ids = [azurerm_user_assigned_identity.workload.id]
+  }
+
+  secret {
+    name  = "webiq-api-key"
+    value = var.webiq_api_key
   }
 
   tags = local.tags

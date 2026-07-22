@@ -25,4 +25,12 @@ gh_repo         = "your-org/travel-concierge-azure"
 # foundry_toolbox_version = "13"   # blank = resolve the default version at startup
 # payments_agent_name     = "travel-payments-agent"
 
+# --- WebIQ web-intelligence --------------------------------------------------
+# The skills connect to WebIQ directly (web/browse/places/...) for richer, more
+# current results. Provide the API key (sent as the x-apikey header); it also
+# backs the Foundry "webiq" connection. Leave blank to skip WebIQ (falls back to
+# the built-in web search).
+# webiq_mcp_url = "https://api.microsoft.ai/v3/mcp"
+# webiq_api_key = "your-webiq-api-key"
+
 

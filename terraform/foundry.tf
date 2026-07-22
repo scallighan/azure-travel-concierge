@@ -131,7 +131,7 @@ resource "azapi_resource" "project_appinsights_connection" {
       category      = "AppInsights"
       target        = azurerm_application_insights.this.id
       authType      = "ApiKey"
-      isSharedToAll = true
+      isSharedToAll = false
       credentials = {
         key = azurerm_application_insights.this.connection_string
       }
@@ -159,6 +159,70 @@ resource "azurerm_role_assignment" "project_appinsights_monitoring_reader" {
   role_definition_name = "Monitoring Data Reader"
   principal_id         = azapi_resource.ai_foundry_project.output.identity.principalId
   principal_type       = "ServicePrincipal"
+}
+
+# ---------------------------------------------------------------------------
+# Mock VIC payments connection (RemoteTool / custom MCP). The Foundry-hosted
+# payments agent references this connection by name (project_connection_id) so
+# all payment traffic flows through the mock VIC MCP server rather than the
+# shared Toolbox. authType is None because the mock service is anonymous.
+# ---------------------------------------------------------------------------
+resource "azapi_resource" "vic_mock_connection" {
+  type                      = "Microsoft.CognitiveServices/accounts/projects/connections@2025-06-01"
+  name                      = "vic-mock"
+  parent_id                 = azapi_resource.ai_foundry_project.id
+  schema_validation_enabled = false
+
+  body = {
+    properties = {
+      category      = "RemoteTool"
+      target        = local.vic_mcp_url
+      authType      = "None"
+      group         = "GenericProtocol"
+      isSharedToAll = false
+      metadata = {
+        type = "custom_MCP"
+      }
+    }
+  }
+}
+
+# ---------------------------------------------------------------------------
+# WebIQ web-intelligence connection (RemoteTool / custom MCP). The skills
+# connect to WebIQ directly (via the container's WEBIQ_* env), but the
+# connection is also modelled here so the endpoint + API key are Terraform-
+# managed and visible in the Foundry portal. authType is CustomKeys (x-apikey).
+# ---------------------------------------------------------------------------
+resource "azapi_resource" "webiq_connection" {
+  count                     = var.webiq_api_key == "" ? 0 : 1
+  type                      = "Microsoft.CognitiveServices/accounts/projects/connections@2025-06-01"
+  name                      = "webiq"
+  parent_id                 = azapi_resource.ai_foundry_project.id
+  schema_validation_enabled = false
+
+  body = {
+    properties = {
+      category      = "RemoteTool"
+      target        = var.webiq_mcp_url
+      authType      = "CustomKeys"
+      group         = "GenericProtocol"
+      isSharedToAll = false
+      metadata = {
+        type = "custom_MCP"
+      }
+      credentials = {
+        keys = {
+          "x-apikey" = var.webiq_api_key
+        }
+      }
+    }
+  }
+
+  # The API key lives only in the connection body; ignore drift once set so a
+  # re-apply without the var present does not wipe it.
+  lifecycle {
+    ignore_changes = [body.properties.credentials]
+  }
 }
 
 resource "azapi_resource" "embedding_deployment" {
