@@ -4,6 +4,11 @@ An Azure-native re-implementation of the AWS Bedrock AgentCore
 [travel-concierge-agent](https://github.com/aurbac/amazon-bedrock-agentcore-samples/tree/main/05-blueprints/travel-concierge-agent)
 blueprint, built on **Azure AI Foundry** and the **Microsoft Agent Framework**.
 
+> 📐 An editable **draw.io** diagram with official Azure/Microsoft service icons
+> lives at [`docs/architecture.drawio`](architecture.drawio) — open it in
+> [diagrams.net](https://app.diagrams.net) or the VS Code Draw.io Integration
+> extension.
+
 ## High-level diagram
 
 ```

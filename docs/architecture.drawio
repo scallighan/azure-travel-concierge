@@ -1,0 +1,139 @@
+<mxfile host="Electron" agent="copilot-cli">
+  <diagram id="travel-concierge" name="Architecture">
+    <mxGraphModel dx="3857" dy="1482" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="820" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="S2wKJ4U0js3AA1_pgAQi-22" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="" vertex="1">
+          <mxGeometry height="903" width="1440" x="-20" y="7" as="geometry" />
+        </mxCell>
+        <mxCell id="rg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fontSize=13;fontStyle=1;arcSize=3;fillColor=none;strokeColor=#8C9AA6;fontColor=#5A6874;spacingTop=6;dashed=1;" value="" vertex="1">
+          <mxGeometry height="740" width="1100" x="40" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="cae" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fontSize=13;fontStyle=1;arcSize=3;fillColor=#E6F2FB;strokeColor=#4C8BD9;fontColor=#12456F;spacingTop=6;" value="Azure Container Apps Environment" vertex="1">
+          <mxGeometry height="630" width="640" x="64" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="S2wKJ4U0js3AA1_pgAQi-14" parent="1" style="rounded=1;whiteSpace=wrap;html=1;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;fillColor=#b1ddf0;strokeColor=#10739e;" value="Skills" vertex="1">
+          <mxGeometry height="250" width="290" x="212" y="398" as="geometry" />
+        </mxCell>
+        <mxCell id="title" parent="1" style="text;html=1;fontSize=22;fontStyle=1;fontColor=#0B3D6B;align=left;verticalAlign=middle;" value="Azure Travel Concierge — Architecture" vertex="1">
+          <mxGeometry height="34" width="700" x="40" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="foundry" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fontSize=13;fontStyle=1;arcSize=3;fillColor=#F0E8F8;strokeColor=#8E5CC0;fontColor=#4B2A73;spacingTop=6;" value="Microsoft Foundry" vertex="1">
+          <mxGeometry height="300" width="380" x="730" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="data" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fontSize=13;fontStyle=1;arcSize=3;fillColor=#E7F6EA;strokeColor=#46A05A;fontColor=#1E5B2E;spacingTop=6;" value="Data &amp;amp; Secrets" vertex="1">
+          <mxGeometry height="300" width="380" x="730" y="560" as="geometry" />
+        </mxCell>
+        <mxCell id="obs" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fontSize=13;fontStyle=1;arcSize=3;fillColor=#F2F3F5;strokeColor=#98A0A8;fontColor=#4A525A;spacingTop=6;" value="Observability &amp;amp; Governance" vertex="1">
+          <mxGeometry height="630" width="200" x="1170" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="browser" parent="1" style="sketch=0;html=1;shape=image;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=none;fontSize=11;fontColor=#23272E;aspect=fixed;image=img/lib/azure2/general/Browser.svg;" value="User (Browser)" vertex="1">
+          <mxGeometry height="60" width="60" x="70" y="66" as="geometry" />
+        </mxCell>
+        <mxCell id="entra" parent="1" style="sketch=0;html=1;shape=image;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=none;fontSize=11;fontColor=#23272E;aspect=fixed;image=img/lib/azure2/identity/Azure_Active_Directory.svg;" value="Microsoft Entra ID (MSAL sign-in)" vertex="1">
+          <mxGeometry height="60" width="60" x="560" y="66" as="geometry" />
+        </mxCell>
+        <mxCell id="swa" parent="1" style="sketch=0;html=1;shape=image;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=none;fontSize=11;fontColor=#23272E;aspect=fixed;image=img/lib/azure2/preview/Static_Apps.svg;" value="Azure Static Web App (React + Vite SPA)" vertex="1">
+          <mxGeometry height="60" width="60" x="327" y="66" as="geometry" />
+        </mxCell>
+        <mxCell id="S2wKJ4U0js3AA1_pgAQi-21" edge="1" parent="1" source="concierge" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="S2wKJ4U0js3AA1_pgAQi-14" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="concierge" parent="1" style="sketch=0;html=1;shape=image;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=none;fontSize=11;fontColor=#23272E;aspect=fixed;image=img/lib/azure2/other/Worker_Container_App.svg;" value="Concierge Agent (aca-agent)&lt;div&gt;FastAPI · MAF Agent Harness&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="60" x="327" y="278" as="geometry" />
+        </mxCell>
+        <mxCell id="cart" parent="1" style="sketch=0;html=1;shape=image;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=none;fontSize=11;fontColor=#23272E;aspect=fixed;image=img/lib/azure2/other/Worker_Container_App.svg;" value="cart-tools MCP (internal)" vertex="1">
+          <mxGeometry height="60" width="60" x="580" y="530" as="geometry" />
+        </mxCell>
+        <mxCell id="vic" parent="1" style="sketch=0;html=1;shape=image;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=none;fontSize=11;fontColor=#23272E;aspect=fixed;image=img/lib/azure2/other/Worker_Container_App.svg;" value="vic-mock MCP (VIC)" vertex="1">
+          <mxGeometry height="60" width="60" x="580" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="merchant" parent="1" style="sketch=0;html=1;shape=image;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=none;fontSize=11;fontColor=#23272E;aspect=fixed;image=img/lib/azure2/other/Worker_Container_App.svg;" value="merchant-mock MCP&lt;div&gt;(acquirer)&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="60" x="580" y="410" as="geometry" />
+        </mxCell>
+        <mxCell id="embed" parent="1" style="sketch=0;html=1;shape=image;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=none;fontSize=11;fontColor=#23272E;aspect=fixed;image=img/lib/azure2/ai_machine_learning/Azure_OpenAI.svg;" value="text-embedding-3&lt;div&gt;(embeddings)&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="60" x="990" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="S2wKJ4U0js3AA1_pgAQi-23" edge="1" parent="1" source="toolbox" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;entryX=1.077;entryY=0.488;entryDx=0;entryDy=0;entryPerimeter=0;curved=0;dashed=1;" target="vic" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="S2wKJ4U0js3AA1_pgAQi-26" edge="1" parent="1" source="toolbox" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;" target="S2wKJ4U0js3AA1_pgAQi-25" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="toolbox" parent="1" style="sketch=0;html=1;shape=image;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=none;fontSize=11;fontColor=#23272E;aspect=fixed;image=img/lib/azure2/general/Toolbox.svg;" value="Foundry Toolbox (WebIQ + VIC conn.)" vertex="1">
+          <mxGeometry height="60" width="60" x="800" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="cosmos" parent="1" style="sketch=0;html=1;shape=image;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=none;fontSize=11;fontColor=#23272E;aspect=fixed;image=img/lib/azure2/databases/Azure_Cosmos_DB.svg;" value="CosmosDB&lt;div&gt;(History and Memory)&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="60" x="812" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="search" parent="1" style="sketch=0;html=1;shape=image;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=none;fontSize=11;fontColor=#23272E;aspect=fixed;image=img/lib/azure2/app_services/Search_Services.svg;" value="Azure AI Search&lt;div&gt;(Documentation)&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="60" x="980" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="storage" parent="1" style="sketch=0;html=1;shape=image;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=none;fontSize=11;fontColor=#23272E;aspect=fixed;image=img/lib/azure2/storage/Storage_Accounts.svg;" value="Azure Storage" vertex="1">
+          <mxGeometry height="60" width="60" x="810" y="740" as="geometry" />
+        </mxCell>
+        <mxCell id="kv" parent="1" style="sketch=0;html=1;shape=image;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=none;fontSize=11;fontColor=#23272E;aspect=fixed;image=img/lib/azure2/security/Key_Vaults.svg;" value="Azure Key Vault" vertex="1">
+          <mxGeometry height="60" width="60" x="980" y="740" as="geometry" />
+        </mxCell>
+        <mxCell id="vnet" parent="1" style="sketch=0;html=1;shape=image;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=none;fontSize=11;fontColor=#23272E;aspect=fixed;image=img/lib/azure2/networking/Virtual_Networks.svg;" value="Vnet" vertex="1">
+          <mxGeometry height="60" width="60" x="10" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="pe" parent="1" style="sketch=0;html=1;shape=image;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=none;fontSize=11;fontColor=#23272E;aspect=fixed;image=img/lib/azure2/networking/Private_Endpoint.svg;" value="Private Endpoints" vertex="1">
+          <mxGeometry height="40" width="40" x="720" y="540" as="geometry" />
+        </mxCell>
+        <mxCell id="mi" parent="1" style="sketch=0;html=1;shape=image;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=none;fontSize=11;fontColor=#23272E;aspect=fixed;image=img/lib/azure2/identity/Managed_Identities.svg;" value="Managed Identity (Entra RBAC)" vertex="1">
+          <mxGeometry height="60" width="60" x="1240" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="law" parent="1" style="sketch=0;html=1;shape=image;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=none;fontSize=11;fontColor=#23272E;aspect=fixed;image=img/lib/azure2/analytics/Log_Analytics_Workspaces.svg;" value="Log Analytics" vertex="1">
+          <mxGeometry height="60" width="60" x="1240" y="510" as="geometry" />
+        </mxCell>
+        <mxCell id="appi" parent="1" style="sketch=0;html=1;shape=image;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=none;fontSize=11;fontColor=#23272E;aspect=fixed;image=img/lib/azure2/management_governance/Application_Insights.svg;" value="Application Insights" vertex="1">
+          <mxGeometry height="60" width="60" x="1240" y="390" as="geometry" />
+        </mxCell>
+        <mxCell id="e_browser_swa" edge="1" parent="1" source="browser" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;jettySize=auto;strokeColor=#4D5761;fontSize=10;fontColor=#243B53;labelBackgroundColor=#FFFFFF;" target="swa" value="HTTPS">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_swa_entra" edge="1" parent="1" source="swa" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;jettySize=auto;strokeColor=#4D5761;fontSize=10;fontColor=#243B53;labelBackgroundColor=#FFFFFF;" target="entra" value="MSAL sign-in">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_swa_concierge" edge="1" parent="1" source="swa" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;jettySize=auto;strokeColor=#4D5761;fontSize=10;fontColor=#243B53;labelBackgroundColor=#FFFFFF;" target="concierge" value="AG-UI (SSE) + REST">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gpt" parent="1" style="sketch=0;html=1;shape=image;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=none;fontSize=11;fontColor=#23272E;aspect=fixed;image=img/lib/azure2/ai_machine_learning/Azure_OpenAI.svg;" value="gpt-5.4&lt;div&gt;(model deployment)&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="60" x="990" y="410" as="geometry" />
+        </mxCell>
+        <mxCell id="payments" parent="1" style="sketch=0;html=1;shape=image;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=none;fontSize=11;fontColor=#23272E;aspect=fixed;image=img/lib/azure2/ai_machine_learning/AI_Foundry.svg;" value="Payments agent&lt;div&gt;(Foundry-hosted)&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="60" x="800" y="410" as="geometry" />
+        </mxCell>
+        <mxCell id="S2wKJ4U0js3AA1_pgAQi-6" parent="1" style="image;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/azure2/security/Security_Center.svg;imageBackground=none;labelBackgroundColor=none;" value="Defender" vertex="1">
+          <mxGeometry height="68" width="56.00000000000001" x="1242" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="S2wKJ4U0js3AA1_pgAQi-7" parent="1" style="image;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/azure2/general/Cost_Management_and_Billing.svg;labelBackgroundColor=none;" value="Cost Management" vertex="1">
+          <mxGeometry height="68" width="68" x="1236" y="752" as="geometry" />
+        </mxCell>
+        <mxCell id="S2wKJ4U0js3AA1_pgAQi-8" parent="1" style="image;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/azure2/general/File.svg;labelBackgroundColor=none;" value="Flights" vertex="1">
+          <mxGeometry height="44.36" width="36" x="251" y="425.82" as="geometry" />
+        </mxCell>
+        <mxCell id="S2wKJ4U0js3AA1_pgAQi-9" parent="1" style="image;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/azure2/general/File.svg;labelBackgroundColor=none;" value="Hotels" vertex="1">
+          <mxGeometry height="44.36" width="36" x="341" y="425.82" as="geometry" />
+        </mxCell>
+        <mxCell id="S2wKJ4U0js3AA1_pgAQi-10" parent="1" style="image;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/azure2/general/File.svg;labelBackgroundColor=none;" value="Food&lt;div&gt;Entertainment&lt;/div&gt;" vertex="1">
+          <mxGeometry height="44.36" width="36" x="421" y="425.82" as="geometry" />
+        </mxCell>
+        <mxCell id="S2wKJ4U0js3AA1_pgAQi-11" parent="1" style="image;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/azure2/general/File.svg;labelBackgroundColor=none;" value="Maps" vertex="1">
+          <mxGeometry height="44.36" width="36" x="251" y="548" as="geometry" />
+        </mxCell>
+        <mxCell id="S2wKJ4U0js3AA1_pgAQi-12" parent="1" style="image;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/azure2/general/File.svg;labelBackgroundColor=none;" value="Weather" vertex="1">
+          <mxGeometry height="44.36" width="36" x="341" y="548" as="geometry" />
+        </mxCell>
+        <mxCell id="S2wKJ4U0js3AA1_pgAQi-13" parent="1" style="image;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/azure2/general/File.svg;labelBackgroundColor=none;" value="Checkout" vertex="1">
+          <mxGeometry height="44.36" width="36" x="421" y="548" as="geometry" />
+        </mxCell>
+        <mxCell id="S2wKJ4U0js3AA1_pgAQi-25" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;verticalAlign=top;sketch=0;labelBackgroundColor=none;align=center;fillColor=#cce5ff;strokeColor=#36393d;" value="&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;Microsoft&lt;/div&gt;&lt;div&gt;WebIQ&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="120" x="770" y="66" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -23,6 +23,14 @@ blueprint, built entirely with Microsoft & Azure products:
 - Self-contained **mock VIC (Visa)** and **mock merchant** MCP servers that mirror
   the real agentic-commerce boundary (no external VIC access required)
 
+## Architecture
+
+![Azure Travel Concierge architecture](docs/architecture.drawio.png)
+
+> Editable source: [`docs/architecture.drawio`](docs/architecture.drawio) — open
+> in [diagrams.net](https://app.diagrams.net) or the VS Code Draw.io Integration
+> extension. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for detail.
+
 ## Repository layout
 
 ```

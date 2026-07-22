@@ -30,3 +30,5 @@ crash.log
 # OS
 .DS_Store
 Thumbs.db
+
+**/*.drawio.bkp
