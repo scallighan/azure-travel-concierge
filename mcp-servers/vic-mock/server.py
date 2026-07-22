@@ -648,6 +648,12 @@ def vic_confirm_transaction(
             if mandate:
                 mandate["spent"] = max(0.0, float(mandate.get("spent", 0.0)) - float(amount or 0))
 
+    # If the caller didn't supply a merchant order id (e.g. the payments agent
+    # driving VIC directly without a separate merchant), generate one on approval
+    # so a confirmed purchase always has an order reference to report.
+    if not order_id and final == TXN_SUCCESS:
+        order_id = f"ORD-{datetime.now(timezone.utc):%Y%m%d}-{_rand(8, string.ascii_uppercase + string.digits)}"
+
     return {
         "success": final == TXN_SUCCESS,
         "instructionId": instruction_id,
