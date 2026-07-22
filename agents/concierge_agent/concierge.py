@@ -202,6 +202,32 @@ class AGUISupervisor:
         self.name = "travel_concierge"
         self.description = "Azure Travel Concierge supervisor agent."
 
+    @property
+    def default_options(self) -> dict:
+        """Expose the harness's tools to the AG-UI framework.
+
+        On a normal turn the per-request harness runs the model with its own
+        configured tools, so this adapter needs no tools. But the AG-UI
+        approval-*resume* path executes the approved tool itself via
+        ``collect_server_tools(agent)`` -> ``_resolve_approval_responses``. If the
+        adapter presents no tools there, ``merge_tools`` returns ``None`` and the
+        approved call is skipped, surfacing a synthetic
+        ``"Error: Tool call invocation failed."`` *before* the tool body runs —
+        which is exactly what breaks the gated ``payments_agent`` checkout.
+
+        Exposing the live tool list (a property, so it reflects the tools built in
+        ``Concierge.start`` even though this adapter is constructed earlier) lets
+        the resume path find and execute the approved payment tool. Because the
+        payment tool is ``approval_mode="always_require"``, ``merge_tools`` passes
+        the server tools through for the approval flow.
+        """
+        return {"tools": self._c._tools}
+
+    @property
+    def client(self):
+        """Foundry chat client — used by AG-UI client-tool registration helpers."""
+        return self._c._client
+
     def create_session(self, *, session_id: str | None = None) -> AgentSession:
         return AgentSession(session_id=session_id)
 

@@ -56,6 +56,16 @@ resource "azurerm_container_app" "vic_mock" {
       cpu    = 0.25
       memory = "0.5Gi"
 
+      # AZURE_CLIENT_ID (from common_env) tells DefaultAzureCredential which
+      # user-assigned identity to use — required for the Cosmos card store below.
+      dynamic "env" {
+        for_each = local.common_env
+        content {
+          name  = env.key
+          value = env.value
+        }
+      }
+
       env {
         name  = "PORT"
         value = "8080"
