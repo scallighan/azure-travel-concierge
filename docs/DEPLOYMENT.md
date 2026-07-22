@@ -27,8 +27,18 @@ Images: `concierge-agent`, `travel-tools-mcp`, `cart-tools-mcp`, `vic-mock-mcp`,
 ```bash
 export GH_REPO="your-org/travel-concierge-azure"   # ghcr.io namespace
 echo "$GHCR_PAT" | docker login ghcr.io -u <you> --password-stdin
-./scripts/build-images.sh                          # builds + pushes :latest
+./scripts/build-images.sh          # builds + pushes an immutable tag (git SHA)
 ```
+
+Images are tagged with the **current git commit's short SHA** (a unique
+`-dirty-<epoch>` suffix is appended when the working tree has uncommitted
+changes), and the moving `:latest` tag is updated too as a convenience pointer.
+Terraform pins the Container Apps to the *immutable* tag — never `:latest` — so
+every deploy references a distinct, content-addressable image and always rolls a
+fresh revision. The script prints `IMAGE_TAG=<tag>` on its last line; use
+`./scripts/deploy.sh` to build and apply with the same tag automatically. To pin
+an explicit tag, set `TAG=...` before running either script; to skip updating
+`:latest`, set `PUSH_LATEST=false`.
 
 > Make the GHCR packages public, or grant the Container Apps environment pull
 > access, so Azure can pull the images.
@@ -39,8 +49,13 @@ echo "$GHCR_PAT" | docker login ghcr.io -u <you> --password-stdin
 cd terraform
 cp terraform.tfvars.sample terraform.tfvars   # then edit values
 terraform init
-terraform apply -var "gh_repo=${GH_REPO}"
+terraform apply -var "gh_repo=${GH_REPO}" -var "container_image_tag=${TAG}"
 ```
+
+> `scripts/deploy.sh` does this for you: it computes the immutable tag, builds
+> with it, writes `terraform/image.auto.tfvars` (so later *manual* applies keep
+> the same pinned images instead of reverting to `:latest`), and applies. Only
+> pass `container_image_tag` yourself when running Terraform directly.
 
 Key variables (`terraform.tfvars`):
 

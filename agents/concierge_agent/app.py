@@ -28,8 +28,24 @@ from concierge import Concierge
 from config import config
 from mcp_direct import call_mcp_tool
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("agent-app")
+
+# Quiet the noisy Azure/HTTP libraries whose per-request header dumps
+# (e.g. 'x-ms-cosmos-internal-partition-id': 'REDACTED') and raw request lines
+# flood the Container App console and bury the harness's own INFO logs. Our
+# application loggers ("concierge", "payments-agent", "agent-app") stay at INFO.
+for _noisy in (
+    "azure.core.pipeline.policies.http_logging_policy",
+    "azure.cosmos",
+    "azure.identity",
+    "azure.monitor",
+    "httpx",
+    "httpcore",
+    "openai",
+    "uvicorn.access",
+):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 concierge = Concierge()
 

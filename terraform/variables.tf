@@ -42,7 +42,12 @@ variable "embedding_model_version" {
 }
 
 variable "container_image_tag" {
-  type    = string
+  type = string
+  # Immutable image tag the Container Apps are pinned to. `scripts/deploy.sh`
+  # sets this to the git commit SHA of the build (persisted in
+  # image.auto.tfvars) so every deploy references a distinct, content-addressable
+  # tag and always rolls a fresh revision. Defaults to "latest" only for bare
+  # bootstrap applies.
   default = "latest"
 }
 

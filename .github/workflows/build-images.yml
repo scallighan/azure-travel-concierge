@@ -2,8 +2,14 @@ name: Build and push container images
 
 # Builds the five container images consumed by the Azure Container Apps and
 # pushes them to GHCR at ghcr.io/<owner>/<repo>/<image>. Terraform's
-# `local.image_base` (ghcr.io/${var.gh_repo}) resolves to the same namespace,
-# so set `gh_repo = "<owner>/<repo>"` and `container_image_tag = "latest"`.
+# `local.image_base` (ghcr.io/${var.gh_repo}) resolves to the same namespace.
+#
+# Each image is published under an *immutable* tag = the commit's 7-char short
+# SHA (matching `scripts/build-images.sh` / `scripts/deploy.sh`), plus the moving
+# `:latest` pointer on the default branch. Deploy by pinning
+# `container_image_tag = "<short-sha>"` (NOT "latest") so the Container Apps roll
+# a fresh revision for the exact build. The resolved tag is printed in the job
+# summary.
 
 on:
   push:
@@ -15,9 +21,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Extra tag to publish in addition to latest/sha"
+        description: "Optional extra tag to publish (in addition to the short-sha + latest)"
         required: false
-        default: "latest"
+        default: ""
 
 env:
   REGISTRY: ghcr.io
@@ -63,8 +69,8 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.image }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,format=long
-            type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=sha,prefix=,format=short
+            type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag != '' }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -76,3 +82,15 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Summarize published tag
+        run: |
+          SHORT_SHA="$(echo '${{ github.sha }}' | cut -c1-7)"
+          {
+            echo "### ${{ matrix.image }}"
+            echo "Immutable tag: \`${SHORT_SHA}\` — deploy with \`container_image_tag=${SHORT_SHA}\`"
+            echo ""
+            echo '```'
+            echo '${{ steps.meta.outputs.tags }}'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
