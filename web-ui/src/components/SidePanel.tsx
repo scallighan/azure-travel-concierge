@@ -1,4 +1,4 @@
-import { CartItem, ItineraryItem } from "../lib/agentClient";
+import { CartItem, ItineraryItem, itineraryMapUrl } from "../lib/agentClient";
 
 export function SidePanel({
   itinerary,
@@ -20,14 +20,22 @@ export function SidePanel({
           <h4>🧭 Itinerary</h4>
         </div>
         {itinerary.length === 0 && <p className="empty">Nothing planned yet.</p>}
-        {itinerary.map((it, i) => (
-          <div className="panel-card" key={i}>
-            <strong>{it.title ?? it.type}</strong>
-            {it.location && <div className="muted">{it.location}</div>}
-            {it.date && <div className="muted">{it.date}</div>}
-            {it.price && <div className="price">{it.price}</div>}
-          </div>
-        ))}
+        {itinerary.map((it, i) => {
+          const mapUrl = itineraryMapUrl(it);
+          return (
+            <div className="panel-card" key={i}>
+              <strong>{it.title ?? it.type}</strong>
+              {it.location && <div className="muted">{it.location}</div>}
+              {it.date && <div className="muted">{it.date}</div>}
+              {it.price && <div className="price">{it.price}</div>}
+              {mapUrl && (
+                <a className="map-link" href={mapUrl} target="_blank" rel="noreferrer">
+                  📍 View on Bing Maps
+                </a>
+              )}
+            </div>
+          );
+        })}
       </section>
 
       <section>

@@ -15,6 +15,20 @@ export interface ItineraryItem {
   date?: string;
   day?: number;
   description?: string;
+  map_url?: string;
+}
+
+/**
+ * Bing Maps link for an itinerary place. Uses the agent-provided `map_url` when
+ * present, otherwise derives a maps search from the title/location. Flights are
+ * routes, not places, so they never get a link.
+ */
+export function itineraryMapUrl(it: ItineraryItem): string | null {
+  if (it.type && it.type.toLowerCase().includes("flight")) return null;
+  if (it.map_url) return it.map_url;
+  const q = [it.title, it.location].filter(Boolean).join(", ").trim();
+  if (!q) return null;
+  return `https://www.bing.com/maps?q=${encodeURIComponent(q)}`;
 }
 
 export interface ItinerarySummary {

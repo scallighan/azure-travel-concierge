@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from mcp.server.fastmcp import FastMCP
 
 from cosmos_manager import CosmosManager
-from vic_client import call_vic_tool
+from vic_client import call_vic_tool, call_merchant_tool, merchant_configured
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("cart-tools-mcp")
@@ -102,12 +102,23 @@ def cart_update_itinerary_date(user_id: str, identifier: str, item_type: str, ne
 
 # ------------------------------------------------------------------ payment
 @mcp.tool()
-def cart_check_user_has_payment_card(user_id: str) -> dict:
-    """Check whether the user already has a payment card on file. Args: user_id."""
+async def cart_check_user_has_payment_card(user_id: str) -> dict:
+    """Check whether the user already has a payment card on file. Args: user_id.
+
+    VIC is the source of truth for card state: Cosmos only holds a pointer
+    (the vProvisionedTokenId) to the card that lives in VIC, so we confirm the
+    card still exists there and read its display details (last4/brand) from VIC.
+    """
     profile = db.get_user_profile(user_id) or {}
-    card = profile.get("paymentCard")
-    if card:
-        return {"has_card": True, "last4": card.get("last4"), "brand": card.get("card_brand")}
+    ref = profile.get("paymentCard") or {}
+    if ENABLE_VIC and ref.get("vProvisionedTokenId"):
+        card = await call_vic_tool("vic_get_card", {"user_id": user_id})
+        if card.get("has_card"):
+            return {"has_card": True, "last4": card.get("last4"), "brand": card.get("card_brand")}
+        return {"has_card": False}
+    # Simulated / legacy path: trust whatever the profile holds.
+    if ref:
+        return {"has_card": True, "last4": ref.get("last4"), "brand": ref.get("card_brand")}
     return {"has_card": False}
 
 
@@ -165,7 +176,9 @@ async def cart_onboard_card(
         "expiration_date": expiration_date,
         "status": enrolled.get("status", "ACTIVE"),
     }
-    db.set_payment_card(user_id, card)
+    # Persist ONLY the relationship pointer in Cosmos — the card itself (last4,
+    # brand, token, status) is owned by VIC and read back from there on demand.
+    db.set_payment_card(user_id, {"vProvisionedTokenId": token_id})
     return {"success": True, "card": card}
 
 
@@ -179,7 +192,7 @@ async def cart_get_vic_iframe_config(user_id: str) -> dict:
 
 
 @mcp.tool()
-def cart_request_purchase_confirmation(user_id: str) -> dict:
+async def cart_request_purchase_confirmation(user_id: str) -> dict:
     """
     Prepare a purchase summary (total + payment method) that MUST be shown to
     the user before cart_confirm_purchase. Args: user_id.
@@ -188,14 +201,14 @@ def cart_request_purchase_confirmation(user_id: str) -> dict:
     if not items:
         return {"requires_confirmation": False, "error": "Cart is empty"}
     total = _cart_total(items)
-    profile = db.get_user_profile(user_id) or {}
-    card = profile.get("paymentCard")
+    card = await call_vic_tool("vic_get_card", {"user_id": user_id}) if ENABLE_VIC else {}
+    has_card = bool(card.get("has_card"))
     return {
         "requires_confirmation": True,
         "total_amount": total,
         "total_items": len(items),
-        "payment_method": f"{card.get('card_brand')} ending in {card.get('last4')}" if card else None,
-        "has_card": bool(card),
+        "payment_method": f"{card.get('card_brand')} ending in {card.get('last4')}" if has_card else None,
+        "has_card": has_card,
         "message": f"Ready to purchase {len(items)} item(s) for ${total}. Confirm to proceed.",
     }
 
@@ -212,15 +225,17 @@ async def cart_confirm_purchase(user_id: str) -> dict:
     if not items:
         return {"success": False, "error": "Cart is empty"}
     total = _cart_total(items)
-    profile = db.get_user_profile(user_id) or {}
-    card = profile.get("paymentCard")
-    if ENABLE_VIC and not card:
+    # VIC is the source of truth for the card — resolve it from user_id.
+    card = await call_vic_tool("vic_get_card", {"user_id": user_id}) if ENABLE_VIC else {}
+    if ENABLE_VIC and not card.get("has_card"):
         return {"success": False, "error": "No payment card on file"}
 
     order_id = f"ORD-{datetime.now(timezone.utc):%Y%m%d}-{int(time.time()) % 100000}"
     payment_method = "Simulated"
+    merchant_order_id = None
+    authorization_code = None
 
-    if ENABLE_VIC and card:
+    if ENABLE_VIC and card.get("has_card"):
         token_id = card["vProvisionedTokenId"]
         prompt = f"Travel Concierge booking: {len(items)} item(s) totaling ${total}"
 
@@ -261,9 +276,45 @@ async def cart_confirm_purchase(user_id: str) -> dict:
         if not approved:
             reason = (creds.get("declined") or [{}])[0].get("declineReason", creds.get("error", "declined"))
             return {"success": False, "error": f"Payment declined: {reason}"}
-        transaction_reference_id = approved[0]["transactionReferenceId"]
+        credential = approved[0]
+        transaction_reference_id = credential["transactionReferenceId"]
 
-        # Step 3 — VIC: confirm the transaction outcome back to VIC.
+        # Step 3 — MERCHANT: present the network-token credentials to the
+        # merchant/acquirer to authorize + settle and create the order. In VIC
+        # the merchant is a separate party from Visa; it only ever sees the DPAN
+        # + cryptogram, never the PAN.
+        if merchant_configured():
+            settlement = await call_merchant_tool(
+                "merchant_authorize",
+                {
+                    "amount": total,
+                    "currency_code": "840",
+                    "payment_credentials": credential,
+                    "order_reference": order_id,
+                    "merchant_name": "Travel Concierge",
+                    "items": items,
+                },
+            )
+            if not settlement.get("approved"):
+                # Tell VIC the transaction was declined so the mandate ledger
+                # releases the reserved amount, then surface the reason.
+                await call_vic_tool(
+                    "vic_confirm_transaction",
+                    {
+                        "instruction_id": instruction_id,
+                        "transaction_reference_id": transaction_reference_id,
+                        "amount": total,
+                        "currency_code": "840",
+                        "transaction_status": "DECLINED",
+                        "order_id": order_id,
+                    },
+                )
+                reason = settlement.get("declineReason") or settlement.get("error", "declined")
+                return {"success": False, "error": f"Merchant declined the payment: {reason}"}
+            merchant_order_id = settlement.get("orderId")
+            authorization_code = settlement.get("authorizationCode")
+
+        # Step 4 — VIC: confirm the transaction outcome back to VIC.
         confirmation = await call_vic_tool(
             "vic_confirm_transaction",
             {
@@ -272,7 +323,7 @@ async def cart_confirm_purchase(user_id: str) -> dict:
                 "amount": total,
                 "currency_code": "840",
                 "transaction_status": "APPROVED",
-                "order_id": order_id,
+                "order_id": merchant_order_id or order_id,
             },
         )
         if not confirmation.get("success"):
@@ -285,6 +336,8 @@ async def cart_confirm_purchase(user_id: str) -> dict:
         "items_count": len(items),
         "items": items,
         "payment_method": payment_method,
+        "merchant_order_id": merchant_order_id,
+        "authorization_code": authorization_code,
         "status": "CONFIRMED",
     }
     db.create_order(user_id, order)
@@ -292,7 +345,8 @@ async def cart_confirm_purchase(user_id: str) -> dict:
 
     # NOTE: purchase-confirmation notifications (email) will be handled by WorkIQ.
     return {"success": True, "order_id": order_id, "total_amount": total,
-            "items_count": len(items), "payment_method": payment_method}
+            "items_count": len(items), "payment_method": payment_method,
+            "merchant_order_id": merchant_order_id, "authorization_code": authorization_code}
 
 
 if __name__ == "__main__":

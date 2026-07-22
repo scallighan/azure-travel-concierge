@@ -9,7 +9,7 @@ Terraform, container images on GHCR, and Azure Static Web Apps for the UI.
 | ------------------- | -------------------------------------------------- |
 | Azure CLI (`az`)    | Auth + subscription selection (`az login`)         |
 | Terraform ≥ 1.6     | Infrastructure provisioning                        |
-| Docker              | Building the four container images                 |
+| Docker              | Building the five container images                 |
 | GitHub account/PAT  | Pushing images to GHCR (`ghcr.io/<owner>/<repo>`)  |
 | Node.js ≥ 18 + npm  | Building the React web UI                          |
 | Python ≥ 3.11       | Seed + AI Search ingestion scripts                 |
@@ -21,7 +21,8 @@ You also need:
 
 ## 1. Build & push container images
 
-Images: `concierge-agent`, `travel-tools-mcp`, `cart-tools-mcp`, `vic-mock-mcp`.
+Images: `concierge-agent`, `travel-tools-mcp`, `cart-tools-mcp`, `vic-mock-mcp`,
+`merchant-mock-mcp`.
 
 ```bash
 export GH_REPO="your-org/travel-concierge-azure"   # ghcr.io namespace
@@ -65,9 +66,11 @@ Identity** (no keys; Storage shared keys are disabled).
 > Reader roles for the project identity), so agent runs and GenAI traces show up
 > in the Foundry portal's tracing view with no extra setup.
 
-> **vic-mock is stateful** — the mock VIC server keeps token/mandate state
-> in-memory to mirror the real VTS/VACP flow, so it must run as a **single
-> replica**. Do not scale `vic-mock-mcp` beyond one instance.
+> **vic-mock and merchant-mock are stateful** — the mock VIC server keeps
+> token/mandate/card state in-memory (and indexes cards by `user_id`), and the
+> mock merchant keeps orders in-memory, to mirror the real VTS/VACP + acquirer
+> flow. Each must run as a **single replica**. Do not scale `vic-mock-mcp` or
+> `merchant-mock-mcp` beyond one instance.
 
 > **Foundry Toolbox** — the travel skills and payments agent consume the
 > `travel-concierge-toolbox` (WebIQ + VIC tools). Set `foundry_toolbox_name` /
@@ -145,10 +148,10 @@ export GH_REPO="your-org/travel-concierge-azure"
 
 ## Local development
 
-Two ways to run the whole stack (agent + 3 MCP servers + optional UI) locally.
-`travel-tools` and `vic-mock` run as self-contained mocks; the agent and
-`cart-tools` still need a real **Azure AI Foundry** endpoint and **Cosmos DB**
-account (the LLM and Cosmos cannot be mocked).
+Two ways to run the whole stack (agent + 4 MCP servers + optional UI) locally.
+`travel-tools`, `vic-mock` and `merchant-mock` run as self-contained mocks; the
+agent and `cart-tools` still need a real **Azure AI Foundry** endpoint and
+**Cosmos DB** account (the LLM and Cosmos cannot be mocked).
 
 First, create your config:
 
@@ -163,9 +166,9 @@ az login
 ./scripts/run-local.sh        # add --ui to also start the Vite web UI
 ```
 
-This creates a venv, installs all four services' requirements, launches them on
-ports 8080 (agent), 8081 (travel), 8082 (cart), 8083 (vic), health-checks the
-agent, and tails logs. Ctrl-C stops everything.
+This creates a venv, installs all five services' requirements, launches them on
+ports 8080 (agent), 8081 (travel), 8082 (cart), 8083 (vic), 8084 (merchant),
+health-checks the agent, and tails logs. Ctrl-C stops everything.
 
 ### Option B — docker compose
 
@@ -185,11 +188,12 @@ Set the env vars from `agents/concierge_agent/config.py`
 `COSMOS_ENDPOINT`, `SEARCH_ENDPOINT`, …), sign in with `az login`, then:
 
 ```bash
-# terminal 1-3: MCP servers
+# terminal 1-4: MCP servers
 PORT=8083 python mcp-servers/vic-mock/server.py
+PORT=8084 python mcp-servers/merchant-mock/server.py
 PORT=8081 python mcp-servers/travel-tools/server.py
-PORT=8082 VIC_MCP_URL=http://localhost:8083/mcp python mcp-servers/cart-tools/server.py
-# terminal 4: agent (from agents/concierge_agent)
+PORT=8082 VIC_MCP_URL=http://localhost:8083/mcp MERCHANT_MCP_URL=http://localhost:8084/mcp python mcp-servers/cart-tools/server.py
+# terminal 5: agent (from agents/concierge_agent)
 TRAVEL_MCP_URL=http://localhost:8081/mcp CART_MCP_URL=http://localhost:8082/mcp uvicorn app:app --port 8080
 # terminal 5: UI (VITE_MOCK_AUTH=true, VITE_AGENT_URL=http://localhost:8080)
 cd web-ui && npm run dev

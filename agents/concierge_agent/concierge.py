@@ -42,6 +42,17 @@ logger = logging.getLogger("concierge")
 # tools passed to the harness.
 SKILLS_DIR = Path(__file__).resolve().parent / "skills"
 
+# The payment step is the only tool that requires explicit human approval (HITL).
+# Every other tool the harness would gate (skill loading, WebIQ research, itinerary
+# saves, card checks) is auto-approved so research flows without friction — while a
+# human still approves before any purchase.
+PAYMENT_TOOL_NAME = "payments_agent"
+
+
+def _auto_approve_non_payment(function_call) -> bool:
+    """Auto-approve any tool call except the payment step, which stays gated."""
+    return getattr(function_call, "name", None) != PAYMENT_TOOL_NAME
+
 
 def _referenced_call_ids(messages) -> set[str]:
     """Collect every function-call id referenced by the given messages.
@@ -219,6 +230,7 @@ class Concierge:
             description="Secure checkout/purchase agent (VIC): confirm and complete purchases.",
             arg_name="query",
             arg_description="The purchase request, always including the user's id.",
+            approval_mode="always_require",
         )
 
     async def start(self) -> None:
@@ -333,6 +345,13 @@ class Concierge:
             history_provider=self._history,
             disable_web_search=self._disable_web_search,
             disable_file_memory=True,
+            # Auto-approve every tool the harness would otherwise gate (skill
+            # loading, WebIQ research, itinerary saves, card checks) so research
+            # flows without friction. The payment tool is marked
+            # ``approval_mode="always_require"``, so this rule (which returns
+            # False for it) leaves it gated: the user must approve before any
+            # purchase — human-in-the-loop right before the payment step.
+            auto_approval_rules=[_auto_approve_non_payment],
             # FoundryChatClient stores conversation state server-side by default
             # (STORES_BY_DEFAULT=True). Left as-is, the harness would treat the
             # CosmosHistoryProvider as a write-only sink and resume from a Foundry

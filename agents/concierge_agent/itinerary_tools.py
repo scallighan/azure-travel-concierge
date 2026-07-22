@@ -24,7 +24,7 @@ async def save_itinerary(
     itinerary_id: Annotated[str, Field(description="The id of the active itinerary to write to.")],
     items: Annotated[
         list[dict],
-        Field(description="The complete desired itinerary items. Each: type, title, location, price, date, day, description."),
+        Field(description="The complete desired itinerary items. Each: type, title, location, price, date, day, description, map_url (a Bing Maps link for hotels/restaurants/specific places; empty for flights)."),
     ],
 ) -> str:
     """Persist the full itinerary for the active itinerary_id so the UI can render it."""

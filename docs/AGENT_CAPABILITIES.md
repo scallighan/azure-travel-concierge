@@ -21,6 +21,7 @@ separate sub-agents.
 | `flights`             | Search & compare flight options, schedules, fares, routes       |
 | `hotel-booking`       | Find & compare hotels/lodging (with Bing Maps links)            |
 | `food-entertainment`  | Restaurants, food experiences, attractions & things to do       |
+| `maps`                | Resolve a place's exact name/address + Bing Maps link; answer proximity questions (e.g. "restaurants near my hotel"). Read-only |
 | `checkout`            | Guarded purchase workflow — delegates execution to payments     |
 
 The travel skills gather real-world information through the **Foundry Toolbox**
@@ -38,10 +39,11 @@ search** tool.
 
 ## Supporting MCP servers
 
-`cart-tools` (cart/itinerary/checkout persistence + VIC) and `vic-mock` back the
-non-LLM REST endpoints and the payments fallback path. `travel-tools` (destination
-/ flight / hotel / places search) is still deployed but **superseded** by the
-Toolbox's WebIQ tools for the harness skills.
+`cart-tools` (cart/itinerary/checkout persistence + VIC + merchant), `vic-mock`
+(Visa) and `merchant-mock` (acquirer) back the non-LLM REST endpoints and the
+payments path. `travel-tools` (destination / flight / hotel / places search) is
+still deployed but **superseded** by the Toolbox's WebIQ tools for the harness
+skills.
 
 | Tool (MCP `cart-tools`)               | Description                                          |
 | ------------------------------------- | ---------------------------------------------------- |
@@ -50,11 +52,11 @@ Toolbox's WebIQ tools for the harness skills.
 | `cart_remove_from_cart`               | Remove item(s) by identifier                         |
 | `cart_clear_cart`                     | Empty the cart                                       |
 | `cart_update_itinerary_date`          | Reschedule an itinerary item                          |
-| `cart_check_user_has_payment_card`    | Whether a (tokenized) card is on file                |
-| `cart_onboard_card`                   | Onboard a card via VIC (VTS enroll+provision, then VACP enroll); card bypasses the LLM |
+| `cart_check_user_has_payment_card`    | Whether a card is on file (resolved from `vic-mock` via `vic_get_card`) |
+| `cart_onboard_card`                   | Onboard a card via VIC (VTS enroll+provision, then VACP enroll); card bypasses the LLM. Cosmos stores only the token pointer |
 | `cart_get_vic_iframe_config`          | Config for the (mock) hosted card-capture iframe     |
 | `cart_request_purchase_confirmation`  | Step 1 — summarize order & ask user to confirm       |
-| `cart_confirm_purchase`               | Step 2 — checkout under a VIC mandate (instruction → credentials → confirm) |
+| `cart_confirm_purchase`               | Step 2 — checkout: VIC mandate → credentials → **merchant settlement** → confirm |
 
 ## Mock VIC MCP server (`vic-mock`)
 
@@ -76,7 +78,8 @@ derived.
 | `vic_get_iframe_config`| Hosted card-capture iframe configuration                        |
 | `vic_enroll_pan`       | Enroll a PAN with VTS → `vPanEnrollmentID` + `cardMetaData`      |
 | `vic_provision_token`  | Provision a network token → `vProvisionedTokenID` + `tokenInfo` |
-| `vic_enroll_card`      | Enroll the token for agentic commerce (VACP) → card `ACTIVE`     |
+| `vic_enroll_card`      | Enroll the token for agentic commerce (VACP) → card `ACTIVE`; indexes the card by `user_id` |
+| `vic_get_card`         | Look up a user's active card (source of truth) by `user_id` → token + last4/brand |
 | `vic_deprovision_token`| Delete a provisioned token                                      |
 
 **VIC / VACP — agentic commerce**
@@ -90,7 +93,22 @@ derived.
 
 Onboarding runs `vic_enroll_pan` → `vic_provision_token` → `vic_enroll_card`;
 checkout runs `vic_create_instruction` → `vic_retrieve_credentials` →
-`vic_confirm_transaction`. `cart-tools` orchestrates both sequences.
+`merchant_authorize` → `vic_confirm_transaction`. `cart-tools` orchestrates both
+sequences. **VIC is the source of truth for the card** — Cosmos stores only the
+`vProvisionedTokenId` pointer, and card state is read back via `vic_get_card`.
+
+## Mock merchant / acquirer (`merchant-mock`)
+
+The merchant is the party **separate from Visa** that settles the sale. At
+checkout the agent retrieves network-token credentials from `vic-mock` and
+**presents them here** — the merchant validates the DPAN + cryptogram, authorizes,
+and creates the order. It never sees the PAN.
+
+| Tool                  | Description                                                          |
+| --------------------- | ------------------------------------------------------------------- |
+| `merchant_authorize`  | Settle VIC network-token credentials, create the order, return an authorization code (idempotent per `transactionReferenceId`) |
+| `merchant_get_order`  | Look up a previously authorized merchant order                      |
+| `merchant_health`     | Health probe                                                         |
 
 Checkout is deliberately **guarded**: the `checkout` skill only starts after the
 user explicitly confirms the order, card details never enter chat, and the actual

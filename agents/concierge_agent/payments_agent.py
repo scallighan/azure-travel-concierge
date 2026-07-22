@@ -15,6 +15,7 @@ import asyncio
 import logging
 from typing import Annotated
 
+from agent_framework import tool
 from azure.identity import DefaultAzureCredential
 from pydantic import Field
 
@@ -125,6 +126,7 @@ def set_payments(agent: PaymentsAgent) -> None:
     _instance = agent
 
 
+@tool(approval_mode="always_require")
 async def payments_agent(
     query: Annotated[str, Field(description="The purchase/checkout request in natural language.")],
     user_id: Annotated[str, Field(description="The user's unique id.")],

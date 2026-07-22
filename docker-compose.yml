@@ -1,7 +1,7 @@
 # Local, all-in-one stack for the Azure Travel Concierge.
 #
-# Runs the four Python services (agent + 3 MCP servers) and, optionally, the
-# React web UI. `travel-tools` and `vic-mock` are fully self-contained mocks.
+# Runs the five Python services (agent + 4 MCP servers) and, optionally, the
+# React web UI. `travel-tools`, `vic-mock` and `merchant-mock` are fully self-contained mocks.
 # The agent and `cart-tools` still need real Azure AI Foundry + Cosmos DB
 # (the LLM and Cosmos cannot be mocked); see docs/DEPLOYMENT.md#local-development.
 #
@@ -24,6 +24,13 @@ services:
     ports:
       - "8083:8080"
 
+  merchant-mock:
+    build: ./mcp-servers/merchant-mock
+    environment:
+      PORT: 8080
+    ports:
+      - "8084:8080"
+
   travel-tools:
     build: ./mcp-servers/travel-tools
     environment:
@@ -43,6 +50,7 @@ services:
       COSMOS_ENDPOINT: ${COSMOS_ENDPOINT:?set COSMOS_ENDPOINT in .env}
       COSMOS_DATABASE: ${COSMOS_DATABASE:-concierge}
       VIC_MCP_URL: http://vic-mock:8080/mcp
+      MERCHANT_MCP_URL: http://merchant-mock:8080/mcp
       ENABLE_VIC_INTEGRATION: ${ENABLE_VIC_INTEGRATION:-true}
       AZURE_CLIENT_ID: ${AZURE_CLIENT_ID:-}
       AZURE_TENANT_ID: ${AZURE_TENANT_ID:-}
@@ -51,6 +59,7 @@ services:
       - "8082:8080"
     depends_on:
       - vic-mock
+      - merchant-mock
 
   concierge-agent:
     build: ./agents/concierge_agent

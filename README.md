@@ -20,7 +20,8 @@ blueprint, built entirely with Microsoft & Azure products:
   the agent over the **AG-UI protocol** (custom SSE reader ↔ FastAPI `/agui`),
   including human-in-the-loop tool-approval interrupts
 - **Terraform** (azurerm + azapi + azuread) for all infrastructure
-- A self-contained **mock VIC MCP server** (no external VIC access required)
+- Self-contained **mock VIC (Visa)** and **mock merchant** MCP servers that mirror
+  the real agentic-commerce boundary (no external VIC access required)
 
 ## Repository layout
 
@@ -29,8 +30,9 @@ agents/concierge_agent/   Supervisor agent (FastAPI + Microsoft Agent Framework)
   skills/                 File-based Harness skills (SKILL.md per subfolder)
 mcp-servers/
   travel-tools/           MCP: destination / flight / hotel search
-  cart-tools/             MCP: cart, itinerary, checkout (Cosmos + VIC)
-  vic-mock/              MCP: mock VIC tokenization / payment
+  cart-tools/             MCP: cart, itinerary, checkout (Cosmos + VIC + merchant)
+  vic-mock/               MCP: mock VIC (Visa) tokenization / mandates / credentials
+  merchant-mock/          MCP: mock merchant / acquirer — settles VIC credentials, creates orders
 search-ingestion/         Push visa docs into Azure AI Search
 web-ui/                   React + Vite SPA (chat, cart, itinerary, card modal)
 terraform/                All Azure infrastructure as code

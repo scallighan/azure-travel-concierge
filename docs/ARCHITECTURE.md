@@ -24,7 +24,8 @@ blueprint, built on **Azure AI Foundry** and the **Microsoft Agent Framework**.
                      │   Agent Harness (FoundryChatClient)   │
                      │    ├─ file-based skills (SKILL.md):   │
                      │    │   flights · hotel-booking ·      │
-                     │    │   food-entertainment · checkout  │
+                     │    │   food-entertainment · maps ·    │
+                     │    │   checkout                        │
                      │    ├─ save_itinerary (fn tool)        │
                      │    └─ payments_agent (Foundry-hosted) │
                      └──┬────────────────────────┬──────────┘
@@ -36,11 +37,16 @@ blueprint, built on **Azure AI Foundry** and the **Microsoft Agent Framework**.
               └────┬─────────┘          └──────────────────────┘
                    │ MCP           ┌──────────────┐
             ┌──────▼───────┐       │ Cosmos DB    │  named multi-itineraries
-            │ vic-mock     │       │ (NoSQL)      │  + per-itinerary chat
-            │ MCP (ACA)    │       │ profile/cart/│    history
-            │ internal     │       │ itin/orders/ │
-            └──────────────┘       │ chatHistory  │
-                                   └──────────────┘
+            │ cart-tools   │       │ (NoSQL)      │  + per-itinerary chat
+            │ orchestrates │       │ profile/cart/│    history
+            │ VIC + merchant│      │ itin/orders/ │
+            └──┬────────┬──┘       │ chatHistory  │
+               │ MCP    │ MCP      └──────────────┘
+        ┌──────▼────┐ ┌─▼────────────┐
+        │ vic-mock  │ │ merchant-mock│  settles VIC network-token
+        │ MCP (ACA) │ │ MCP (ACA)    │  credentials → creates order
+        │ (Visa/VDP)│ │ (acquirer)   │
+        └───────────┘ └──────────────┘
 
   Foundry (gpt-5.4 + text-embedding) · Cosmos · Storage · Key Vault (all
   private-endpoint only) · Log Analytics / App Insights. Azure AI Search
@@ -63,7 +69,7 @@ blueprint, built on **Azure AI Foundry** and the **Microsoft Agent Framework**.
 | Bedrock Knowledge Base (visa docs)     | Azure AI Search (`visa-documentation` index)           |
 | Amazon SES                             | _Removed_ — notifications to be handled by WorkIQ      |
 | AWS Secrets Manager                    | Azure Key Vault                                         |
-| VIC MCP server (external)              | **Mock VIC MCP server** (`mcp-servers/vic-mock`), also surfaced via the Foundry Toolbox |
+| VIC MCP server (external)              | **Mock VIC (Visa) MCP server** (`mcp-servers/vic-mock`) + **mock merchant/acquirer** (`mcp-servers/merchant-mock`) — the two separate agentic-commerce parties |
 | IAM roles                              | User-Assigned Managed Identity + Entra RBAC            |
 
 ## Agents, skills & tools
@@ -73,10 +79,13 @@ The concierge is a single **Agent Harness** supervisor (`create_harness_agent`,
 `SKILL.md` files under `agents/concierge_agent/skills/`, advertised in the system
 prompt and loaded on demand — using a shared set of tools:
 
-- **flights**, **hotel-booking**, **food-entertainment** — look up real-world
-  travel information using the **Foundry Toolbox** (`travel-concierge-toolbox`,
+- **flights**, **hotel-booking**, **food-entertainment**, **maps** — look up
+  real-world travel information using the **Foundry Toolbox** (`travel-concierge-toolbox`,
   which bundles the **WebIQ** web-intelligence tools). When the Toolbox is not
-  configured, the harness falls back to its built-in **web search** tool.
+  configured, the harness falls back to its built-in **web search** tool. The
+  **maps** skill is read-only: it resolves a place's exact name/address and a
+  Bing Maps link and answers proximity questions (e.g. "restaurants near my
+  hotel") using WebIQ `places`.
 - **checkout** — the guarded purchase workflow; execution is delegated to the
   `payments_agent` tool.
 
@@ -130,9 +139,10 @@ truth for history, so the transcript is never resent.
 
 MCP servers are reached over **Streamable HTTP** at `/mcp`. In Azure they run as
 internal-ingress Container Apps; the agent builds their internal FQDNs from
-Terraform-provided environment variables. `cart-tools` / `vic-mock` back the
-non-LLM REST endpoints (and the payments fallback); the Foundry Toolbox is the
-primary path for travel lookups and payments.
+Terraform-provided environment variables. `cart-tools` orchestrates the non-LLM
+REST endpoints and the checkout flow, calling `vic-mock` (Visa: tokens, mandates,
+credentials) and `merchant-mock` (acquirer: settlement + order) as the two
+separate agentic-commerce parties.
 
 ## Data model (Cosmos DB, database `concierge`)
 
@@ -156,14 +166,26 @@ mirrors the real Visa Intelligent Commerce (VIC) agentic-commerce flow:
    (`vic_enroll_pan`), provisions a **network token** (`vic_provision_token`),
    and enrolls it for agentic commerce (`vic_enroll_card`). Only the token and
    last-4 are returned.
-3. Only the token/last-4 is persisted; the LLM only ever sees "a card ending
-   in 1111 is on file."
-4. At checkout, `cart-tools` creates a VIC **instruction + spending mandate**
-   scoped to the confirmed total (`vic_create_instruction`), retrieves
-   per-transaction credentials — which are **declined if they exceed the mandate**
-   (`vic_retrieve_credentials`) — and confirms the outcome
-   (`vic_confirm_transaction`). The mock keeps the real Visa field names and call
-   ordering but performs no real cryptography or settlement.
+3. **VIC is the source of truth for the card.** Cosmos stores only a *pointer* —
+   the `vProvisionedTokenId` — not the card details. `vic-mock` indexes the card
+   by `user_id` (relationship built at `vic_enroll_card`); `cart_check_user_has_payment_card`
+   resolves the card by calling `vic_get_card(user_id)`, so the UI's "card on
+   file" state always reflects what VIC actually holds. The LLM only ever sees
+   "a card ending in 1111 is on file."
+4. At checkout, `cart-tools` runs the agentic-commerce flow across the two
+   separate parties, mirroring VIC:
+   - **Visa (`vic-mock`)** — create an **instruction + spending mandate** scoped
+     to the confirmed total (`vic_create_instruction`), then retrieve
+     per-transaction network-token **credentials**, which are **declined if they
+     exceed the mandate** (`vic_retrieve_credentials`).
+   - **Merchant (`merchant-mock`)** — the agent **presents those credentials** to
+     the merchant/acquirer (`merchant_authorize`), which validates the DPAN +
+     cryptogram, authorizes/settles, and creates the merchant order. The merchant
+     never sees the PAN.
+   - **Visa (`vic-mock`)** — confirm the outcome back to Visa
+     (`vic_confirm_transaction`) so the mandate ledger reflects the final state.
+   The mocks keep the real Visa field names and call ordering but perform no real
+   cryptography or settlement.
 
 ## Security
 

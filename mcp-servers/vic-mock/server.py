@@ -101,6 +101,7 @@ _lock = threading.Lock()
 _pan_enrollments: dict[str, dict] = {}
 _tokens: dict[str, dict] = {}
 _vic_cards: dict[str, dict] = {}      # keyed by vProvisionedTokenID
+_user_cards: dict[str, str] = {}      # user_id -> active vProvisionedTokenID (relationship index)
 _instructions: dict[str, dict] = {}
 _mandates: dict[str, dict] = {}
 _transactions: dict[str, dict] = {}
@@ -348,6 +349,9 @@ def vic_enroll_card(v_provisioned_token_id: str) -> dict:
             "user_id": token["user_id"],
             "status": CARD_ACTIVE,
         }
+        # Index the card by user so it can be looked up with only a user_id
+        # (this is the relationship the app stores a pointer to in Cosmos).
+        _user_cards[token["user_id"]] = v_provisioned_token_id
 
     return {
         "success": True,
@@ -357,6 +361,43 @@ def vic_enroll_card(v_provisioned_token_id: str) -> dict:
         "enrollmentReferenceProvider": ENROLLMENT_REFERENCE_PROVIDER_VTS,
         "enrolled_at": _now_iso(),
     }
+
+
+@mcp.tool()
+def vic_get_card(user_id: str) -> dict:
+    """
+    Look up the payment card a user currently has on file with VIC — the source
+    of truth for card state. VIC is keyed by ``vProvisionedTokenID``; this tool
+    resolves that token from a ``user_id`` relationship index built during
+    ``vic_enroll_card``, so callers holding only a ``user_id`` (e.g. the payments
+    agent, or the cart's card-status check) can verify a card and obtain the
+    token needed to transact — without the card details ever being stored
+    outside VIC.
+
+    Returns ``{"has_card": True, "vProvisionedTokenId", "last4", "card_brand",
+    "status", ...}`` when an ACTIVE card exists, otherwise ``{"has_card": False}``.
+
+    Args:
+        user_id: The user whose card to look up.
+    """
+    with _lock:
+        token_id = _user_cards.get(user_id)
+        if not token_id:
+            return {"has_card": False}
+        card = _vic_cards.get(token_id)
+        token = _tokens.get(token_id)
+        if card is None or token is None or card.get("status") != CARD_ACTIVE:
+            return {"has_card": False}
+        return {
+            "has_card": True,
+            "vProvisionedTokenId": token_id,
+            "cardId": card["card_id"],
+            "last4": token["last4"],
+            "card_brand": token["brand"],
+            "exp_month": token["exp_month"],
+            "exp_year": token["exp_year"],
+            "status": card["status"],
+        }
 
 
 @mcp.tool()
@@ -374,6 +415,9 @@ def vic_deprovision_token(v_provisioned_token_id: str) -> dict:
             return {"success": False, "error": "Unknown vProvisionedTokenID."}
         token["status"] = TOKEN_DELETED
         _vic_cards.pop(v_provisioned_token_id, None)
+        # Drop the user->card relationship if it points at this token.
+        if token.get("user_id") and _user_cards.get(token["user_id"]) == v_provisioned_token_id:
+            _user_cards.pop(token["user_id"], None)
 
     return {
         "success": True,

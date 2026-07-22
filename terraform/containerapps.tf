@@ -33,9 +33,10 @@ locals {
   # Internal FQDNs the agent uses to reach the MCP servers (MCP streamable-http).
   # Internal-ingress apps are addressable at "<app>.internal.<default_domain>",
   # so use each app's actual ingress FQDN rather than composing it by hand.
-  travel_mcp_url = "https://${azurerm_container_app.travel_mcp.ingress[0].fqdn}/mcp"
-  cart_mcp_url   = "https://${azurerm_container_app.cart_mcp.ingress[0].fqdn}/mcp"
-  vic_mcp_url    = "https://${azurerm_container_app.vic_mock.ingress[0].fqdn}/mcp"
+  travel_mcp_url   = "https://${azurerm_container_app.travel_mcp.ingress[0].fqdn}/mcp"
+  cart_mcp_url     = "https://${azurerm_container_app.cart_mcp.ingress[0].fqdn}/mcp"
+  vic_mcp_url      = "https://${azurerm_container_app.vic_mock.ingress[0].fqdn}/mcp"
+  merchant_mcp_url = "https://${azurerm_container_app.merchant_mock.ingress[0].fqdn}/mcp"
 }
 
 # ---------------------------------------------------------------------------
@@ -69,6 +70,51 @@ resource "azurerm_container_app" "vic_mock" {
     client_certificate_mode = "ignore"
     target_port             = 8080
     transport               = "auto"
+    traffic_weight {
+      latest_revision = true
+      percentage      = 100
+    }
+  }
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.workload.id]
+  }
+
+  tags = local.tags
+}
+
+# ---------------------------------------------------------------------------
+# Mock merchant / acquirer MCP server (internal) — settles VIC network-token
+# credentials and creates the merchant order (the party separate from Visa).
+# ---------------------------------------------------------------------------
+resource "azurerm_container_app" "merchant_mock" {
+  name                         = "aca-merchant-mock-${local.func_name}"
+  container_app_environment_id = azurerm_container_app_environment.this.id
+  resource_group_name          = azurerm_resource_group.this.name
+  revision_mode                = "Single"
+  workload_profile_name        = "Consumption"
+
+  template {
+    container {
+      name   = "merchant-mock"
+      image  = "${local.image_base}/merchant-mock-mcp:${var.container_image_tag}"
+      cpu    = 0.25
+      memory = "0.5Gi"
+
+      env {
+        name  = "PORT"
+        value = "8080"
+      }
+    }
+    min_replicas = 1
+    max_replicas = 1
+  }
+
+  ingress {
+    external_enabled = false
+    target_port      = 8080
+    transport        = "auto"
     traffic_weight {
       latest_revision = true
       percentage      = 100
@@ -182,6 +228,10 @@ resource "azurerm_container_app" "cart_mcp" {
         value = local.vic_mcp_url
       }
       env {
+        name  = "MERCHANT_MCP_URL"
+        value = local.merchant_mcp_url
+      }
+      env {
         name  = "ENABLE_VIC_INTEGRATION"
         value = tostring(var.enable_vic_integration)
       }
@@ -279,7 +329,7 @@ resource "azurerm_container_app" "agent" {
       }
       env {
         name  = "WEBIQ_MCP_URL"
-        value = var.webiq_mcp_url
+        value = local.webiq_mcp_url
       }
       env {
         name        = "WEBIQ_API_KEY"
@@ -334,7 +384,7 @@ resource "azurerm_container_app" "agent" {
 
   secret {
     name  = "webiq-api-key"
-    value = var.webiq_api_key
+    value = local.webiq_api_key
   }
 
   tags = local.tags

@@ -53,6 +53,7 @@ echo "==> Installing dependencies (first run may take a minute)"
 pip install --quiet --upgrade pip
 pip install --quiet \
   -r "${ROOT}/mcp-servers/vic-mock/requirements.txt" \
+  -r "${ROOT}/mcp-servers/merchant-mock/requirements.txt" \
   -r "${ROOT}/mcp-servers/travel-tools/requirements.txt" \
   -r "${ROOT}/mcp-servers/cart-tools/requirements.txt" \
   -r "${ROOT}/agents/concierge_agent/requirements.txt"
@@ -80,11 +81,13 @@ start() {
 # --- Mock MCP servers -------------------------------------------------------
 start "vic-mock"    "${ROOT}/mcp-servers/vic-mock"    8083 "python server.py"
 
+start "merchant-mock" "${ROOT}/mcp-servers/merchant-mock" 8084 "python server.py"
+
 start "travel-tools" "${ROOT}/mcp-servers/travel-tools" 8081 "python server.py"
 
 # --- Cosmos-backed cart MCP -------------------------------------------------
 start "cart-tools"   "${ROOT}/mcp-servers/cart-tools"   8082 \
-  "VIC_MCP_URL=http://localhost:8083/mcp python server.py"
+  "VIC_MCP_URL=http://localhost:8083/mcp MERCHANT_MCP_URL=http://localhost:8084/mcp python server.py"
 
 # --- Supervisor agent -------------------------------------------------------
 start "concierge-agent" "${ROOT}/agents/concierge_agent" 8080 \
@@ -119,6 +122,7 @@ echo "  agent          http://localhost:8080  (/health, /agui)"
 echo "  travel-tools   http://localhost:8081/mcp"
 echo "  cart-tools     http://localhost:8082/mcp"
 echo "  vic-mock      http://localhost:8083/mcp"
+echo "  merchant-mock  http://localhost:8084/mcp"
 [[ "${START_UI}" == true ]] && echo "  web-ui         http://localhost:5173"
 echo
 echo "Try:  curl -N localhost:8080/agui -H 'content-type: application/json' \\"

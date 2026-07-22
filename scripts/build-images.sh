@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build and push all four container images to GHCR.
+# Build and push all five container images to GHCR.
 # Requires: docker logged in to ghcr.io, GH_REPO set to "owner/name".
 set -euo pipefail
 
@@ -13,6 +13,7 @@ declare -A images=(
   ["travel-tools-mcp"]="mcp-servers/travel-tools"
   ["cart-tools-mcp"]="mcp-servers/cart-tools"
   ["vic-mock-mcp"]="mcp-servers/vic-mock"
+  ["merchant-mock-mcp"]="mcp-servers/merchant-mock"
 )
 
 for name in "${!images[@]}"; do

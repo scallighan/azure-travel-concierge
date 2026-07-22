@@ -188,41 +188,30 @@ resource "azapi_resource" "vic_mock_connection" {
 }
 
 # ---------------------------------------------------------------------------
-# WebIQ web-intelligence connection (RemoteTool / custom MCP). The skills
-# connect to WebIQ directly (via the container's WEBIQ_* env), but the
-# connection is also modelled here so the endpoint + API key are Terraform-
-# managed and visible in the Foundry portal. authType is CustomKeys (x-apikey).
+# WebIQ web-intelligence connection (RemoteTool / custom MCP). This connection
+# already exists in the Foundry project, so Terraform READS it (rather than
+# managing/recreating it) and wires its endpoint + API key into the agent. The
+# key is pulled from the existing connection at apply time via listsecrets — no
+# key variable is required.
 # ---------------------------------------------------------------------------
-resource "azapi_resource" "webiq_connection" {
-  count                     = var.webiq_api_key == "" ? 0 : 1
-  type                      = "Microsoft.CognitiveServices/accounts/projects/connections@2025-06-01"
-  name                      = "webiq"
-  parent_id                 = azapi_resource.ai_foundry_project.id
-  schema_validation_enabled = false
+data "azapi_resource" "webiq_connection" {
+  type                   = "Microsoft.CognitiveServices/accounts/projects/connections@2025-06-01"
+  resource_id            = "${azapi_resource.ai_foundry_project.id}/connections/webiq"
+  response_export_values = ["properties.target"]
+}
 
-  body = {
-    properties = {
-      category      = "RemoteTool"
-      target        = var.webiq_mcp_url
-      authType      = "CustomKeys"
-      group         = "GenericProtocol"
-      isSharedToAll = false
-      metadata = {
-        type = "custom_MCP"
-      }
-      credentials = {
-        keys = {
-          "x-apikey" = var.webiq_api_key
-        }
-      }
-    }
-  }
+data "azapi_resource_action" "webiq_secrets" {
+  type                   = "Microsoft.CognitiveServices/accounts/projects/connections@2025-06-01"
+  resource_id            = data.azapi_resource.webiq_connection.id
+  action                 = "listsecrets"
+  method                 = "POST"
+  response_export_values = ["properties.credentials.keys"]
+}
 
-  # The API key lives only in the connection body; ignore drift once set so a
-  # re-apply without the var present does not wipe it.
-  lifecycle {
-    ignore_changes = [body.properties.credentials]
-  }
+locals {
+  # Endpoint + API key read from the existing Foundry `webiq` connection.
+  webiq_mcp_url = try(data.azapi_resource.webiq_connection.output.properties.target, var.webiq_mcp_url)
+  webiq_api_key = try(data.azapi_resource_action.webiq_secrets.output.properties.credentials.keys["x-apikey"], "")
 }
 
 resource "azapi_resource" "embedding_deployment" {

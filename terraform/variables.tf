@@ -120,13 +120,6 @@ variable "payments_agent_name" {
 
 variable "webiq_mcp_url" {
   type        = string
-  description = "WebIQ web-intelligence MCP endpoint the skills connect to directly (web/browse/places/...)."
+  description = "Fallback WebIQ MCP endpoint used only if the existing Foundry 'webiq' connection can't be read. Normally the URL is read from that connection."
   default     = "https://api.microsoft.ai/v3/mcp"
-}
-
-variable "webiq_api_key" {
-  type        = string
-  description = "API key for the WebIQ MCP endpoint (sent as the x-apikey header). Backs the Foundry 'webiq' connection and the agent's direct WebIQ connection."
-  sensitive   = true
-  default     = ""
 }

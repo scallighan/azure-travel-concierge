@@ -1,6 +1,6 @@
 name: Build and push container images
 
-# Builds the four container images consumed by the Azure Container Apps and
+# Builds the five container images consumed by the Azure Container Apps and
 # pushes them to GHCR at ghcr.io/<owner>/<repo>/<image>. Terraform's
 # `local.image_base` (ghcr.io/${var.gh_repo}) resolves to the same namespace,
 # so set `gh_repo = "<owner>/<repo>"` and `container_image_tag = "latest"`.
@@ -40,6 +40,8 @@ jobs:
             context: mcp-servers/cart-tools
           - image: vic-mock-mcp
             context: mcp-servers/vic-mock
+          - image: merchant-mock-mcp
+            context: mcp-servers/merchant-mock
     steps:
       - name: Checkout
         uses: actions/checkout@v4
