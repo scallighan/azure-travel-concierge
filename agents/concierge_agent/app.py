@@ -11,7 +11,8 @@ Endpoints:
   GET    /api/itinerary/{user_id}/{itinerary_id}   - itinerary items
   PATCH  /api/itinerary/{user_id}/{itinerary_id}   - rename                    { "name": str }
   DELETE /api/itinerary/{user_id}/{itinerary_id}   - delete (+ its chat history)
-  GET    /api/cart/{user_id}                       - cart contents
+  GET    /api/history/{user_id}/{itinerary_id}     - persisted chat transcript (restore on switch)
+  GET    /api/orders/{user_id}                     - past orders (completed purchases)
   GET    /api/vic/iframe-config/{user_id}          - VIC iframe config
   POST   /api/vic/onboard-card                     - secure card onboarding
 """
@@ -120,9 +121,19 @@ async def delete_itinerary(user_id: str, itinerary_id: str):
 
 
 # --- UI support endpoints (call MCP/Cosmos directly, no LLM) -----------------
-@app.get("/api/cart/{user_id}")
-async def get_cart(user_id: str):
-    return await call_mcp_tool(config.CART_MCP_URL, "cart_view_cart", {"user_id": user_id})
+@app.get("/api/history/{user_id}/{itinerary_id}")
+async def get_history(user_id: str, itinerary_id: str):
+    """Persisted chat transcript for an itinerary, so switching itineraries (or
+    reloading the page) restores the visible conversation."""
+    messages = await concierge.get_history(user_id, itinerary_id)
+    return {"user_id": user_id, "itinerary_id": itinerary_id, "messages": messages}
+
+
+@app.get("/api/orders/{user_id}")
+async def get_orders(user_id: str):
+    """The user's past orders (completed purchases), most recent first."""
+    orders = await concierge.cosmos.list_orders(user_id) if concierge.cosmos else []
+    return {"user_id": user_id, "orders": orders}
 
 
 @app.get("/api/vic/iframe-config/{user_id}")

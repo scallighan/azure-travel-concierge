@@ -48,6 +48,7 @@ class CosmosManager:
         self._db = self._client.get_database_client(config.COSMOS_DATABASE)
         self.itinerary = self._db.get_container_client(config.COSMOS_ITINERARY_CONTAINER)
         self.profiles = self._db.get_container_client("userProfiles")
+        self.orders = self._db.get_container_client("orders")
 
     async def close(self) -> None:
         await self._client.close()
@@ -137,6 +138,8 @@ class CosmosManager:
                 "date": it.get("date", ""),
                 "day": it.get("day", 0),
                 "description": it.get("description", ""),
+                "map_url": it.get("map_url", ""),
+                "booking_url": it.get("booking_url", ""),
             }
             for it in items
         ]
@@ -147,3 +150,28 @@ class CosmosManager:
     async def get_items(self, user_id: str, itinerary_id: str) -> list[dict]:
         doc = await self.get_itinerary(user_id, itinerary_id)
         return doc.get("items", []) if doc else []
+
+    # --- orders -------------------------------------------------------------
+    async def create_order(self, user_id: str, order: dict) -> dict:
+        """Persist a completed purchase. Keyed by order_id (upsert = idempotent)."""
+        doc = {
+            "id": order.get("order_id") or str(uuid.uuid4()),
+            "userId": user_id,
+            "kind": "order",
+            "createdAt": _now(),
+            **order,
+        }
+        await self.orders.upsert_item(doc)
+        return doc
+
+    async def list_orders(self, user_id: str) -> list[dict]:
+        """Return the user's orders, most recent first."""
+        docs = [
+            o
+            async for o in self.orders.query_items(
+                query="SELECT * FROM c WHERE c.userId = @u",
+                parameters=[{"name": "@u", "value": user_id}],
+            )
+        ]
+        docs.sort(key=lambda d: d.get("createdAt", ""), reverse=True)
+        return docs

@@ -54,8 +54,10 @@ exceed the mandate is declined.
    panel to add one securely — and **STOP** (do not call `payments_agent`). Once
    they confirm a card is added, re-run this check and continue.
 3. **Delegate to payments.** With a card confirmed, call the `payments_agent` tool
-   with the user's id, a clear description of the confirmed purchase, AND the
-   concrete total amount (a specific number in USD). The payments agent will:
+   with the user's id, the active **itinerary_id**, a clear description of the
+   confirmed purchase, AND the concrete total amount (a specific number in USD).
+   Passing the itinerary_id lets the completed purchase be recorded as an order.
+   The payments agent will:
    - complete the purchase under a mandate and return an order id / total, or a
      decline reason (e.g. the amount exceeded the spending mandate).
 4. **Report back.** Confirm the booking as an **itemized list** (see Output),

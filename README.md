@@ -5,8 +5,8 @@ An **Azure AI Foundry** re-implementation of the AWS Bedrock AgentCore
 blueprint, built entirely with Microsoft & Azure products:
 
 - **Microsoft Agent Framework 1.12** — the **Agent Harness** orchestrates
-  file-based skills (`flights`, `hotel-booking`, `food-entertainment`,
-  `checkout`), performed with the WebIQ-backed **Foundry Toolbox**
+  file-based skills (`flights`, `hotel-booking`, `food-entertainment`, `maps`,
+  `weather`, `checkout`), performed with the WebIQ-backed **Foundry Toolbox**
 - **Azure AI Foundry** (`gpt-5.4` + embeddings) as the model backbone, plus a
   **Foundry-hosted Payments agent** (visible in the portal) that consumes a
   **Foundry Toolbox** wrapping the mock VIC to complete purchases

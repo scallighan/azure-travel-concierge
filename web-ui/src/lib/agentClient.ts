@@ -1,9 +1,24 @@
 import { config } from "./config";
 
-export interface CartItem {
-  item_type?: string;
+export interface OrderItem {
+  type?: string;
   title?: string;
+  location?: string;
   price?: string;
+  date?: string;
+}
+
+export interface Order {
+  order_id?: string;
+  itinerary_id?: string;
+  status?: string;
+  total_amount?: number;
+  currency?: string;
+  items_count?: number;
+  items?: OrderItem[];
+  payment_method?: string | null;
+  transaction_reference?: string | null;
+  createdAt?: string;
   [k: string]: unknown;
 }
 
@@ -16,6 +31,7 @@ export interface ItineraryItem {
   day?: number;
   description?: string;
   map_url?: string;
+  booking_url?: string;
 }
 
 /**
@@ -29,6 +45,18 @@ export function itineraryMapUrl(it: ItineraryItem): string | null {
   const q = [it.title, it.location].filter(Boolean).join(", ").trim();
   if (!q) return null;
   return `https://www.bing.com/maps?q=${encodeURIComponent(q)}`;
+}
+
+/**
+ * Booking link for a flight itinerary item. Uses the agent-provided `booking_url`
+ * when present. Only flights carry a booking link; other item types return null.
+ */
+export function itineraryBookingUrl(it: ItineraryItem): string | null {
+  const isFlight = it.type ? it.type.toLowerCase().includes("flight") : false;
+  if (!isFlight) return null;
+  const url = it.booking_url?.trim();
+  if (!url || !/^https?:\/\//i.test(url)) return null;
+  return url;
 }
 
 export interface ItinerarySummary {
@@ -185,16 +213,39 @@ export async function resumeChat(
   );
 }
 
-export async function getCart(userId: string): Promise<CartItem[]> {
-  const r = await fetch(`${base}/api/cart/${userId}`);
+export async function getOrders(userId: string): Promise<Order[]> {
+  const r = await fetch(`${base}/api/orders/${userId}`);
   const data = await r.json();
-  return (data.items as CartItem[]) ?? [];
+  return (data.orders as Order[]) ?? [];
 }
 
 export async function getItinerary(userId: string, itineraryId: string): Promise<ItineraryItem[]> {
   const r = await fetch(`${base}/api/itinerary/${userId}/${itineraryId}`);
   const data = await r.json();
   return (data.items as ItineraryItem[]) ?? [];
+}
+
+/**
+ * The persisted chat transcript for an itinerary. Used to restore the visible
+ * conversation when switching itineraries or reloading — the agent already keeps
+ * this history server-side (Cosmos), keyed by `userId:itineraryId`.
+ */
+export async function getHistory(
+  userId: string,
+  itineraryId: string,
+): Promise<{ role: "user" | "assistant"; content: string }[]> {
+  const r = await fetch(`${base}/api/history/${encodeURIComponent(userId)}/${encodeURIComponent(itineraryId)}`);
+  if (!r.ok) return [];
+  const data = await r.json();
+  const msgs = Array.isArray(data.messages) ? data.messages : [];
+  return msgs
+    .filter(
+      (m: unknown): m is { role: "user" | "assistant"; content: string } =>
+        !!m &&
+        ((m as { role?: string }).role === "user" || (m as { role?: string }).role === "assistant") &&
+        typeof (m as { content?: unknown }).content === "string",
+    )
+    .map((m: { role: "user" | "assistant"; content: string }) => ({ role: m.role, content: m.content }));
 }
 
 export async function listItineraries(userId: string): Promise<ItinerarySummary[]> {

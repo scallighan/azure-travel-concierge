@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Message, ChatMessage } from "./Message";
-import { streamChat, resumeChat, AgentInterrupt } from "../lib/agentClient";
+import { streamChat, resumeChat, getHistory, AgentInterrupt } from "../lib/agentClient";
 
 const SUGGESTIONS = [
   "Plan a 5-day trip: Chicago → Tokyo, ~Oct 20, 2 travelers, mid-range",
@@ -22,7 +22,29 @@ export function Chat({
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<AgentInterrupt[]>([]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Restore the persisted transcript for this itinerary so switching itineraries
+  // (or reloading) keeps the conversation. The component is keyed by sessionId in
+  // the parent, so this runs fresh on every itinerary switch.
+  useEffect(() => {
+    let active = true;
+    setHistoryLoaded(false);
+    setMessages([]);
+    setPending([]);
+    getHistory(userId, sessionId)
+      .then((h) => {
+        if (active) setMessages(h);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (active) setHistoryLoaded(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [userId, sessionId]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight);
@@ -97,7 +119,7 @@ export function Chat({
   return (
     <div className="chat">
       <div className="chat-scroll" ref={scrollRef}>
-        {messages.length === 0 && (
+        {messages.length === 0 && historyLoaded && (
           <div className="welcome">
             <h2>👋 Your AI Travel Concierge</h2>
             <p>

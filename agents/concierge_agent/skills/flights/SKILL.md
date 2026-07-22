@@ -42,17 +42,22 @@ an approval is pending — wait for the approval, then proceed.
 3. **Present a numbered, selectable shortlist.** Show **2–4** real options as a
    numbered list (1, 2, 3…). Each option MUST show: airline **and flight number(s)**,
    **departure time**, **arrival time** (with airports; note +1 day if it lands the
-   next day), number of stops (and layover if connecting), and the **cost/fare**. Add
-   a booking link when available. End by asking the traveler to reply with the number
-   of the flight they want (or ask for different options).
+   next day), number of stops (and layover if connecting), the **cost/fare**, and a
+   **booking link** (a real URL where the traveler can book — the airline's own
+   booking page, or an aggregator/Google Flights deep link for that route and date).
+   A booking link is **required for every option, not optional** — always include one.
+   Use `browse` to capture the actual booking URL; never fabricate a link. End by
+   asking the traveler to reply with the number of the flight they want (or ask for
+   different options).
 4. **Hand back the selection.** Do **not** purchase anything — purchasing is the
    checkout skill's job. Once the traveler picks a numbered option, summarize that
-   specific flight so the concierge can save it to the active itinerary as a
-   `flight` item (flights are bookable at checkout).
+   specific flight — **including its booking link** — so the concierge can save it to
+   the active itinerary as a `flight` item with its **`booking_url`** set (flights are
+   bookable at checkout, and the booking link must travel through to the itinerary).
 
 ## Output
 
 Keep it simple (ELI5): a short **numbered** list, one line per flight. Each line MUST
-include the **departure time**, the **arrival time**, and the **cost** (plus airline +
-flight no. and stops). No long intros. End with one line: your top pick and why
-(≤1 sentence), then "Reply with the number you want."
+include the **departure time**, the **arrival time**, the **cost**, and a **booking
+link** (plus airline + flight no. and stops). No long intros. End with one line: your
+top pick and why (≤1 sentence), then "Reply with the number you want."

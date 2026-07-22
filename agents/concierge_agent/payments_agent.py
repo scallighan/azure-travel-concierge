@@ -146,12 +146,26 @@ def set_payments(agent: PaymentsAgent) -> None:
 async def payments_agent(
     query: Annotated[str, Field(description="The purchase/checkout request in natural language.")],
     user_id: Annotated[str, Field(description="The user's unique id.")],
+    itinerary_id: Annotated[str, Field(description="The id of the active itinerary being purchased (so the order can be recorded).")],
 ) -> str:
     """Delegate a confirmed purchase or checkout step to the secure Foundry payments agent (VIC)."""
-    logger.info("payments_agent tool executing post-approval (user_id=%s, query=%r)", user_id, query[:200])
+    logger.info("payments_agent tool executing post-approval (user_id=%s, itinerary_id=%s, query=%r)",
+                user_id, itinerary_id, query[:200])
     if _instance is None or not _instance.enabled:
         logger.warning("payments_agent tool called but Foundry payments agent is not available "
                         "(instance=%s, enabled=%s)", _instance is not None,
                         getattr(_instance, "enabled", None))
         return "Payments agent is not available."
-    return await _instance.invoke(query, user_id)
+    result = await _instance.invoke(query, user_id)
+    # On a successful checkout, snapshot the confirmed itinerary into an order so
+    # the user has a durable purchase record (the Foundry payment path does not go
+    # through cart-tools' order orchestration).
+    try:
+        import itinerary_tools
+
+        order_id = await itinerary_tools.record_order(user_id, itinerary_id, result)
+        if order_id:
+            logger.info("payments_agent recorded order %s for user_id=%s", order_id, user_id)
+    except Exception:  # noqa: BLE001 - recording is best-effort, never fail checkout
+        logger.exception("payments_agent failed to record order (user_id=%s)", user_id)
+    return result

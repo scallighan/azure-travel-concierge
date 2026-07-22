@@ -1,14 +1,24 @@
-import { CartItem, ItineraryItem, itineraryMapUrl } from "../lib/agentClient";
+import { Order, ItineraryItem, itineraryMapUrl, itineraryBookingUrl } from "../lib/agentClient";
+
+function formatAmount(order: Order): string {
+  if (typeof order.total_amount === "number") {
+    return `${order.currency ?? "USD"} ${order.total_amount.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  }
+  return "";
+}
 
 export function SidePanel({
   itinerary,
-  cart,
+  orders,
   onAddCard,
   cardOnFile,
   vicEnabled,
 }: {
   itinerary: ItineraryItem[];
-  cart: CartItem[];
+  orders: Order[];
   onAddCard: () => void;
   cardOnFile: string | null;
   vicEnabled: boolean;
@@ -22,6 +32,7 @@ export function SidePanel({
         {itinerary.length === 0 && <p className="empty">Nothing planned yet.</p>}
         {itinerary.map((it, i) => {
           const mapUrl = itineraryMapUrl(it);
+          const bookingUrl = itineraryBookingUrl(it);
           return (
             <div className="panel-card" key={i}>
               <strong>{it.title ?? it.type}</strong>
@@ -33,18 +44,33 @@ export function SidePanel({
                   📍 View on Bing Maps
                 </a>
               )}
+              {bookingUrl && (
+                <a className="map-link" href={bookingUrl} target="_blank" rel="noreferrer">
+                  ✈️ Book this flight
+                </a>
+              )}
             </div>
           );
         })}
       </section>
 
       <section>
-        <h4>🛒 Cart</h4>
-        {cart.length === 0 && <p className="empty">Cart is empty.</p>}
-        {cart.map((it, i) => (
-          <div className="panel-card" key={i}>
-            <strong>{it.title ?? it.item_type}</strong>
-            {it.price && <div className="price">{it.price}</div>}
+        <h4>🧾 Past Orders</h4>
+        {orders.length === 0 && <p className="empty">No orders yet.</p>}
+        {orders.map((o, i) => (
+          <div className="panel-card" key={o.order_id ?? i}>
+            <strong>{o.order_id ?? "Order"}</strong>
+            {formatAmount(o) && <div className="price">{formatAmount(o)}</div>}
+            {typeof o.items_count === "number" && (
+              <div className="muted">
+                {o.items_count} item{o.items_count === 1 ? "" : "s"}
+                {o.status ? ` · ${o.status}` : ""}
+              </div>
+            )}
+            {o.payment_method && <div className="muted">{o.payment_method}</div>}
+            {o.createdAt && (
+              <div className="muted">{new Date(o.createdAt).toLocaleString()}</div>
+            )}
           </div>
         ))}
       </section>

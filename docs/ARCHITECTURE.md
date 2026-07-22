@@ -18,14 +18,14 @@ blueprint, built on **Azure AI Foundry** and the **Microsoft Agent Framework**.
                      │   Concierge Agent (Container App)     │
                      │   FastAPI  /agui (AG-UI, SSE)         │
                      │           /api/itineraries /itinerary │
-                     │           /api/cart /api/vic/*        │
+                     │           /api/orders /api/vic/*      │
                      │                                       │
                      │   Microsoft Agent Framework 1.12      │
                      │   Agent Harness (FoundryChatClient)   │
                      │    ├─ file-based skills (SKILL.md):   │
                      │    │   flights · hotel-booking ·      │
                      │    │   food-entertainment · maps ·    │
-                     │    │   checkout                        │
+                     │    │   weather · checkout              │
                      │    ├─ save_itinerary (fn tool)        │
                      │    └─ payments_agent (Foundry-hosted) │
                      └──┬────────────────────────┬──────────┘
@@ -79,13 +79,17 @@ The concierge is a single **Agent Harness** supervisor (`create_harness_agent`,
 `SKILL.md` files under `agents/concierge_agent/skills/`, advertised in the system
 prompt and loaded on demand — using a shared set of tools:
 
-- **flights**, **hotel-booking**, **food-entertainment**, **maps** — look up
-  real-world travel information using the **Foundry Toolbox** (`travel-concierge-toolbox`,
-  which bundles the **WebIQ** web-intelligence tools). When the Toolbox is not
-  configured, the harness falls back to its built-in **web search** tool. The
-  **maps** skill is read-only: it resolves a place's exact name/address and a
-  Bing Maps link and answers proximity questions (e.g. "restaurants near my
-  hotel") using WebIQ `places`.
+- **flights**, **hotel-booking**, **food-entertainment**, **maps**, **weather** —
+  look up real-world travel information using the **Foundry Toolbox**
+  (`travel-concierge-toolbox`, which bundles the **WebIQ** web-intelligence tools).
+  When the Toolbox is not configured, the harness falls back to its built-in **web
+  search** tool. The **maps** skill is read-only: it resolves a place's exact
+  name/address and a Bing Maps link and answers proximity questions (e.g.
+  "restaurants near my hotel") using WebIQ `places`. The **weather** skill is also
+  read-only: it reads the destination and dates already on the active itinerary and
+  returns a day-by-day forecast table (WebIQ `web`/`browse`). The **flights** skill
+  attaches a real **booking link** to every option and carries it onto the saved
+  `flight` item as `booking_url` (surfaced in the itinerary UI).
 - **checkout** — the guarded purchase workflow; execution is delegated to the
   `payments_agent` tool.
 
@@ -103,7 +107,10 @@ Shared tools passed to the harness:
 
 Conversation memory is a `CosmosHistoryProvider` scoped per itinerary via
 `AgentSession(session_id=f"{user_id}:{itinerary_id}")`, so each **named
-itinerary** has its own independent chat thread.
+itinerary** has its own independent chat thread. Because the transcript lives in
+Cosmos, the UI restores it from `GET /api/history/{user_id}/{itinerary_id}` when
+the user switches itineraries or reloads — the visible conversation follows the
+active itinerary.
 
 ## Chat transport (AG-UI protocol)
 
@@ -149,9 +156,9 @@ separate agentic-commerce parties.
 | Container      | Partition     | Purpose                                        |
 | -------------- | ------------- | ---------------------------------------------- |
 | `userProfiles` | `/userId`     | Traveler profile & preferences                 |
-| `cart`         | `/userId`     | Active shopping cart items                      |
+| `cart`         | `/userId`     | Legacy cart container (retained for the local checkout fallback; the primary flow uses `itinerary` + `orders`, not a shopping cart) |
 | `itinerary`    | `/userId`     | Named itineraries — one document per itinerary (items day-by-day) |
-| `orders`       | `/userId`     | Completed purchases / booking confirmations    |
+| `orders`       | `/userId`     | Completed purchases / booking confirmations. Written on successful checkout — by `cart-tools` (fallback path) or by the concierge after the Foundry payments agent succeeds (snapshots the itinerary items + VIC transaction ref). Surfaced in the UI "Past Orders" panel via `GET /api/orders/{user_id}` |
 | `chatHistory`  | `/session_id` | Per-itinerary chat memory (`CosmosHistoryProvider`) |
 | `vicCards`     | `/userId`     | Durable mock-card store for vic-mock (token + card metadata, never a PAN) so enrolled cards survive a restart |
 

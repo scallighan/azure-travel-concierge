@@ -468,6 +468,38 @@ class Concierge:
         except Exception:
             logger.warning("Failed to clear chat history for %s:%s", user_id, itinerary_id)
 
+    async def get_history(self, user_id: str, itinerary_id: str) -> list[dict]:
+        """Return the persisted chat transcript for an itinerary as simple
+        ``{role, content}`` bubbles, so the UI can restore the visible
+        conversation when the user switches itineraries or reloads.
+
+        Only user/assistant *text* is returned — system prompts and the
+        tool-call/approval plumbing are filtered out (the same content the chat
+        UI never renders). Dangling tool calls are sanitized away for safety.
+        Best-effort: never raises.
+        """
+        if not self._history:
+            return []
+        try:
+            messages = await self._history.get_messages(f"{user_id}:{itinerary_id}")
+        except Exception:
+            logger.warning("Failed to load chat history for %s:%s", user_id, itinerary_id)
+            return []
+        out: list[dict] = []
+        for msg in _sanitize_history(messages or []):
+            role = getattr(msg, "role", None)
+            role = str(getattr(role, "value", role) or "").lower()
+            if role not in ("user", "assistant"):
+                continue
+            text = "".join(
+                c.text
+                for c in getattr(msg, "contents", None) or []
+                if getattr(c, "text", None)
+            ).strip()
+            if text:
+                out.append({"role": role, "content": text})
+        return out
+
     async def stream(self, prompt: str, user_id: str, itinerary_id: str):
         """Yield text chunks for the supervisor's streamed response."""
         profile = await self._user_profile_text(user_id)

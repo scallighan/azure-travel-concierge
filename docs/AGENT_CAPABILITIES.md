@@ -18,10 +18,11 @@ separate sub-agents.
 
 | Skill                 | Purpose                                                          |
 | --------------------- | --------------------------------------------------------------- |
-| `flights`             | Search & compare flight options, schedules, fares, routes       |
+| `flights`             | Search & compare flight options, schedules, fares, routes. Every option (and the saved `flight` item) carries a real **booking link** (`booking_url`) |
 | `hotel-booking`       | Find & compare hotels/lodging (with Bing Maps links)            |
 | `food-entertainment`  | Restaurants, food experiences, attractions & things to do       |
 | `maps`                | Resolve a place's exact name/address + Bing Maps link; answer proximity questions (e.g. "restaurants near my hotel"). Read-only |
+| `weather`             | Estimated weather forecast for the trip — reads the itinerary dates & destination(s) (WebIQ) and returns a day-by-day forecast table. Read-only |
 | `checkout`            | Guarded purchase workflow — delegates execution to payments     |
 
 The travel skills gather real-world information through the **Foundry Toolbox**
@@ -34,7 +35,7 @@ search** tool.
 | Tool                          | Description                                                         |
 | ----------------------------- | ------------------------------------------------------------------ |
 | Foundry Toolbox (MCP)         | WebIQ lookups for the travel skills + VIC payment tools (AAD-authed)|
-| `payments_agent`              | **Foundry-hosted** (portal-visible) checkout agent consuming the Toolbox's VIC tools; falls back to a local Toolbox/`cart-tools` sub-agent |
+| `payments_agent`              | **Foundry-hosted** (portal-visible) checkout agent consuming the Toolbox's VIC tools; falls back to a local Toolbox/`cart-tools` sub-agent. Takes `user_id` + `itinerary_id`; on a successful checkout the concierge snapshots the itinerary items + VIC transaction ref into the `orders` container (see "Past Orders") |
 | `save_itinerary`              | Persist the active itinerary's items to Cosmos DB                    |
 
 ## Supporting MCP servers
@@ -132,6 +133,7 @@ Card and structured-data operations bypass the model entirely:
 | `GET    /api/itinerary/{user_id}/{itinerary_id}`  | Itinerary items                                 |
 | `PATCH  /api/itinerary/{user_id}/{itinerary_id}`  | Rename an itinerary                             |
 | `DELETE /api/itinerary/{user_id}/{itinerary_id}`  | Delete an itinerary (+ its chat history)        |
-| `GET    /api/cart/{user_id}`                      | Current cart (via `cart-tools` MCP)             |
+| `GET    /api/history/{user_id}/{itinerary_id}`    | Persisted chat transcript (restored when switching itineraries / reloading) |
+| `GET    /api/orders/{user_id}`                    | Past orders (completed purchases)               |
 | `GET    /api/vic/iframe-config/{user_id}`         | Mock card-capture iframe config                 |
 | `POST   /api/vic/onboard-card`                    | Direct card tokenization (never sent to LLM)    |

@@ -5,13 +5,13 @@ import { ItinerarySwitcher } from "./components/ItinerarySwitcher";
 import { VicCardModal } from "./components/VicCardModal";
 import { config, DEMO_USER_ID } from "./lib/config";
 import {
-  getCart,
+  getOrders,
   getCardStatus,
   getItinerary,
   listItineraries,
   createItinerary,
   deleteItinerary,
-  CartItem,
+  Order,
   ItineraryItem,
   ItinerarySummary,
 } from "./lib/agentClient";
@@ -20,7 +20,7 @@ export default function App({ userId, userName }: { userId?: string; userName?: 
   const uid = userId ?? DEMO_USER_ID;
   const [itineraries, setItineraries] = useState<ItinerarySummary[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [itinerary, setItinerary] = useState<ItineraryItem[]>([]);
   const [showCard, setShowCard] = useState(false);
   const [cardOnFile, setCardOnFile] = useState<string | null>(null);
@@ -44,7 +44,7 @@ export default function App({ userId, userName }: { userId?: string; userName?: 
   }, [uid]);
 
   const refresh = useCallback(() => {
-    getCart(uid).then(setCart).catch(() => {});
+    getOrders(uid).then(setOrders).catch(() => {});
     getCardStatus(uid)
       .then((s) => setCardOnFile(s.has_card ? s.last4 ?? "••••" : null))
       .catch(() => {});
@@ -109,7 +109,7 @@ export default function App({ userId, userName }: { userId?: string; userName?: 
         )}
         <SidePanel
           itinerary={itinerary}
-          cart={cart}
+          orders={orders}
           cardOnFile={cardOnFile}
           vicEnabled={config.enableVic}
           onAddCard={() => setShowCard(true)}
