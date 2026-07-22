@@ -35,10 +35,11 @@ logger = logging.getLogger("merchant-mock-mcp")
 PORT = int(os.getenv("PORT", "8080"))
 MERCHANT_NAME = os.getenv("MERCHANT_NAME", "Travel Concierge")
 
-# Purchases at/above this amount are declined by the mock acquirer even when a
-# mandate/credential would otherwise allow them (a coarse "acquirer" ceiling for
-# demos). Kept high so normal trip totals settle.
-DECLINE_CEILING = float(os.getenv("MERCHANT_DECLINE_CEILING", "100000"))
+# Coarse "acquirer" ceiling for demos. Unset by default (``None``) so the mock
+# approves any positive amount — set ``MERCHANT_DECLINE_CEILING`` to a number to
+# re-enable amount-based declines for testing.
+_ceiling_env = os.getenv("MERCHANT_DECLINE_CEILING", "").strip()
+DECLINE_CEILING: float | None = float(_ceiling_env) if _ceiling_env else None
 
 mcp = FastMCP("Merchant Mock", host="0.0.0.0", port=PORT, stateless_http=True)
 
@@ -106,7 +107,7 @@ def merchant_authorize(
         }
     if amount <= 0:
         return {"approved": False, "transactionReferenceId": txn_ref, "declineReason": "INVALID_AMOUNT"}
-    if amount >= DECLINE_CEILING:
+    if DECLINE_CEILING is not None and amount >= DECLINE_CEILING:
         return {"approved": False, "transactionReferenceId": txn_ref, "declineReason": "AMOUNT_LIMIT_EXCEEDED"}
 
     with _lock:

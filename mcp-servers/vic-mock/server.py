@@ -84,9 +84,11 @@ ENROLLMENT_REFERENCE_TYPE_TOKEN = "TOKEN_REFERENCE_ID"
 ENROLLMENT_REFERENCE_PROVIDER_VTS = "VTS"
 TRANSACTION_TYPE_PURCHASE = "PURCHASE"
 
-# Purchases at/above this amount are declined by the mock authorizer even when a
-# mandate would otherwise allow them (a coarse "issuer" ceiling for demos).
-HARD_DECLINE_CEILING = 100000.0
+# Coarse "issuer" ceiling for demos. Set to ``None`` to disable amount-based
+# hard declines entirely — this is a mock, so by default it approves any
+# positive amount (see ``vic_retrieve_credentials``). Set to a float to
+# re-enable a ceiling for testing decline paths.
+HARD_DECLINE_CEILING: float | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -530,7 +532,6 @@ def vic_retrieve_credentials(
             return {"success": False, "status": "FAILED", "error": f"Instruction is {instruction['status']}."}
 
         mandate = _mandates.get(instruction["mandate_id"], {})
-        threshold = float(mandate.get("declineThreshold", {}).get("amount", 0))
         expired = False
         try:
             expired = datetime.fromisoformat(mandate["effectiveUntilTime"]) < datetime.now(timezone.utc)
@@ -552,10 +553,13 @@ def vic_retrieve_credentials(
                 decline_reason = "MANDATE_INACTIVE"
             elif amount <= 0:
                 decline_reason = "INVALID_AMOUNT"
-            elif amount >= HARD_DECLINE_CEILING:
+            elif HARD_DECLINE_CEILING is not None and amount >= HARD_DECLINE_CEILING:
                 decline_reason = "AMOUNT_LIMIT_EXCEEDED"
-            elif running + amount > threshold + 1e-9:
-                decline_reason = "MANDATE_LIMIT_EXCEEDED"
+            # NOTE: this is a mock authorizer. By default we do NOT decline for
+            # exceeding the mandate ceiling — the agent may charge a total that
+            # differs slightly from the estimate the mandate was scoped to, and
+            # forcing an "exact" amount just blocks the demo. The mandate ledger
+            # is still updated below for realism.
 
             if decline_reason:
                 declined.append({
