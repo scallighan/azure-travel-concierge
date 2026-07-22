@@ -213,6 +213,39 @@ html,
   cursor: default;
 }
 
+.approval-card {
+  align-self: flex-start;
+  max-width: 85%;
+  margin: 4px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.approval-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.approval-list {
+  margin: 0 0 12px;
+  padding-left: 18px;
+}
+
+.approval-list code {
+  font-family: ui-monospace, monospace;
+}
+
+.approval-args {
+  opacity: 0.7;
+}
+
+.approval-actions {
+  display: flex;
+  gap: 10px;
+}
+
 .side-panel {
   width: 300px;
   background: var(--panel);

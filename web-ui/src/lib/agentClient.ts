@@ -1,4 +1,3 @@
-import { HttpAgent } from "@ag-ui/client";
 import { config } from "./config";
 
 export interface CartItem {
@@ -34,34 +33,142 @@ function newId(): string {
     : `msg-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+// A pending human-in-the-loop approval request surfaced by the harness. The
+// agent pauses (plan/execute mode + tool approval) and waits for the user to
+// approve or reject running a tool such as load_skill.
+export interface AgentInterrupt {
+  id: string;
+  message: string;
+  toolName: string;
+  toolArgs: Record<string, unknown>;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toInterrupts(raw: any[]): AgentInterrupt[] {
+  return (raw ?? []).map((it) => {
+    const fc = it?.metadata?.agent_framework?.function_call ?? {};
+    return {
+      id: String(it?.id ?? it?.toolCallId ?? ""),
+      message: it?.message ?? "Approve this action?",
+      toolName: fc?.name ?? "action",
+      toolArgs: (fc?.arguments as Record<string, unknown>) ?? {},
+    };
+  });
+}
+
+// Minimal AG-UI SSE client. We POST a RunAgentInput to /agui and parse the
+// Server-Sent Events stream ourselves rather than using @ag-ui/client's
+// HttpAgent. The MAF resume stream is not self-contained -- on resume it emits
+// TOOL_CALL_END / TOOL_CALL_RESULT events for tool calls whose TOOL_CALL_START
+// was in the previous (interrupted) run. @ag-ui/client's strict per-run event
+// verifier rejects those with "No active tool call found", so we read the raw
+// stream and only act on the text, interrupt, and error events we care about.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function postAgui(payload: Record<string, unknown>, onEvent: (ev: any) => void): Promise<void> {
+  const resp = await fetch(`${base}/agui`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok || !resp.body) throw new Error(`Agent request failed (${resp.status})`);
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+
+  const emitFrame = (frame: string) => {
+    const data = frame
+      .split("\n")
+      .filter((l) => l.startsWith("data:"))
+      .map((l) => l.slice(5).replace(/^ /, ""))
+      .join("\n");
+    if (!data) return;
+    try {
+      onEvent(JSON.parse(data));
+    } catch {
+      /* ignore keepalive comments / partial frames */
+    }
+  };
+
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const frames = buf.split("\n\n");
+    buf = frames.pop() ?? "";
+    for (const frame of frames) emitFrame(frame);
+  }
+  if (buf.trim()) emitFrame(buf);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function run(payload: Record<string, unknown>, onDelta: (text: string) => void): Promise<AgentInterrupt[]> {
+  let interrupts: AgentInterrupt[] = [];
+  let runError: string | null = null;
+  await postAgui(payload, (ev) => {
+    switch (ev?.type) {
+      case "TEXT_MESSAGE_CONTENT":
+        if (typeof ev.delta === "string") onDelta(ev.delta);
+        break;
+      case "RUN_FINISHED":
+        if (ev.outcome?.type === "interrupt") interrupts = toInterrupts(ev.outcome.interrupts ?? []);
+        break;
+      case "RUN_ERROR":
+        runError = ev.message ?? "Agent run failed";
+        break;
+    }
+  });
+  if (runError) throw new Error(runError);
+  return interrupts;
+}
+
 // Stream the agent's response over the AG-UI protocol, invoking onDelta for each
-// text chunk. A fresh HttpAgent is created per turn carrying only the new user
-// message; the server (CosmosHistoryProvider, keyed by threadId) owns history, so
-// we never resend the transcript. The (user_id, itinerary_id) travel in
-// forwardedProps and as the thread id "user_id:itinerary_id".
+// text chunk. Each turn carries only the new user message; the server
+// (CosmosHistoryProvider, keyed by threadId) owns history, so we never resend the
+// transcript. The (user_id, itinerary_id) travel in forwardedProps and as the
+// thread id "user_id:itinerary_id".
+//
+// Returns any human-in-the-loop approval requests the run paused on. When the
+// returned array is non-empty, the UI must collect the user's decision and call
+// resumeChat to continue. The server holds the pending approval in-process
+// (keyed by threadId), so the agent runs as a single replica.
 export async function streamChat(
   prompt: string,
   userId: string,
   itineraryId: string,
   onDelta: (text: string) => void,
-): Promise<void> {
-  const agent = new HttpAgent({
-    url: `${base}/agui`,
-    threadId: `${userId}:${itineraryId}`,
-    initialMessages: [{ id: newId(), role: "user", content: prompt }],
-  });
-
-  let runError: string | null = null;
-  await agent.runAgent(
-    { forwardedProps: { user_id: userId, itinerary_id: itineraryId } },
+): Promise<AgentInterrupt[]> {
+  return run(
     {
-      onTextMessageContentEvent: ({ event }) => onDelta(event.delta),
-      onRunErrorEvent: ({ event }) => {
-        runError = event.message ?? "Agent run failed";
-      },
+      threadId: `${userId}:${itineraryId}`,
+      runId: newId(),
+      messages: [{ id: newId(), role: "user", content: prompt }],
+      forwardedProps: { user_id: userId, itinerary_id: itineraryId },
     },
+    onDelta,
   );
-  if (runError) throw new Error(runError);
+}
+
+// Resume a paused run by answering every open approval request with the same
+// decision (accepted). Resolving one approval may surface the next one, so the
+// UI keeps calling resumeChat until it returns an empty array.
+export async function resumeChat(
+  userId: string,
+  itineraryId: string,
+  interruptIds: string[],
+  accepted: boolean,
+  onDelta: (text: string) => void,
+): Promise<AgentInterrupt[]> {
+  return run(
+    {
+      threadId: `${userId}:${itineraryId}`,
+      runId: newId(),
+      messages: [],
+      forwardedProps: { user_id: userId, itinerary_id: itineraryId },
+      resume: interruptIds.map((id) => ({ interruptId: id, status: "resolved", payload: { accepted } })),
+    },
+    onDelta,
+  );
 }
 
 export async function getCart(userId: string): Promise<CartItem[]> {

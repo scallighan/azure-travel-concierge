@@ -103,7 +103,22 @@ The SPA talks to the agent over the **AG-UI protocol**. The server exposes a
 single `POST /agui` endpoint via
 `agent_framework.ag_ui.add_agent_framework_fastapi_endpoint`, which streams
 AG-UI events (`RUN_STARTED` → `TEXT_MESSAGE_*` → `RUN_FINISHED`) over SSE. The
-web-ui uses `@ag-ui/client`'s `HttpAgent` (see `web-ui/src/lib/agentClient.ts`).
+web-ui parses that SSE stream directly with a small custom reader (see
+`web-ui/src/lib/agentClient.ts`) rather than `@ag-ui/client`'s `HttpAgent`: the
+harness resume stream is not self-contained (on resume it emits
+`TOOL_CALL_END`/`TOOL_CALL_RESULT` for tool calls whose `TOOL_CALL_START` was in
+the prior interrupted run), which the library's strict per-run event verifier
+rejects.
+
+Human-in-the-loop tool approvals are surfaced as AG-UI interrupts:
+`add_agent_framework_fastapi_endpoint` (via `require_confirmation`, default on)
+finishes a run with `RUN_FINISHED outcome={type:"interrupt", ...}` when the
+harness hits an `approval_mode="always_require"` tool (e.g. `load_skill`,
+checkout). The UI renders an Approve/Reject prompt and resumes by re-POSTing to
+`/agui` with `resume=[{interruptId, status:"resolved", payload:{accepted}}]`.
+Resolving one approval can surface the next, so the client loops until the run
+finishes with no interrupts. The pending-approval state is held **in-process**
+(keyed by `thread_id`), so the agent runs as a **single replica**.
 
 Because the concierge builds a fresh harness supervisor per turn (to inject the
 user profile + active itinerary into the instructions), a thin

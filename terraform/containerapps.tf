@@ -187,7 +187,7 @@ resource "azurerm_container_app" "cart_mcp" {
       }
     }
     min_replicas = 1
-    max_replicas = 3
+    max_replicas = 1
   }
 
   ingress {
@@ -301,7 +301,7 @@ resource "azurerm_container_app" "agent" {
     }
 
     min_replicas = 1
-    max_replicas = 5
+    max_replicas = 1
   }
 
   ingress {

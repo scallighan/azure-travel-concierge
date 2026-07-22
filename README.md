@@ -15,7 +15,8 @@ blueprint, built entirely with Microsoft & Azure products:
   multi-itineraries**, and per-itinerary chat memory (`CosmosHistoryProvider`)
 - **Azure Container Apps** for the agent and MCP tool servers
 - **Azure Static Web Apps** + **Entra ID** for the React chat UI, which talks to
-  the agent over the **AG-UI protocol** (`@ag-ui/client` ↔ FastAPI `/agui`)
+  the agent over the **AG-UI protocol** (custom SSE reader ↔ FastAPI `/agui`),
+  including human-in-the-loop tool-approval interrupts
 - **Terraform** (azurerm + azapi + azuread) for all infrastructure
 - A self-contained **mock VIC MCP server** (no external VIC access required)
 

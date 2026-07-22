@@ -44,6 +44,65 @@ logger = logging.getLogger("concierge")
 SKILLS_DIR = Path(__file__).resolve().parent / "skills"
 
 
+def _sanitize_history(messages: list) -> list:
+    """Drop tool-call content that has no matching result.
+
+    An interrupted run (e.g. a human-in-the-loop tool approval left unanswered,
+    or a reboot mid-approval) can persist an assistant ``function_call`` to Cosmos
+    without the corresponding ``function_result``. When that history is replayed,
+    the Foundry Responses API rejects it with ``400 - No tool output found for
+    function call ...`` and every subsequent turn fails. We repair the transcript
+    on read by keeping only tool-related content whose ``call_id`` has both a call
+    and a result, then dropping any messages left empty.
+    """
+    call_ids: set[str] = set()
+    result_ids: set[str] = set()
+    for msg in messages:
+        for content in getattr(msg, "contents", None) or []:
+            call_id = getattr(content, "call_id", None)
+            if not call_id:
+                continue
+            if content.type == "function_call":
+                call_ids.add(call_id)
+            elif content.type == "function_result":
+                result_ids.add(call_id)
+    complete = call_ids & result_ids
+    tool_types = {"function_call", "function_result", "function_approval_request", "function_approval_response"}
+
+    cleaned: list = []
+    for msg in messages:
+        contents = getattr(msg, "contents", None)
+        if not contents:
+            cleaned.append(msg)
+            continue
+        kept = [
+            c
+            for c in contents
+            if not (c.type in tool_types and getattr(c, "call_id", None) and c.call_id not in complete)
+        ]
+        if len(kept) == len(contents):
+            cleaned.append(msg)
+            continue
+        if kept:
+            msg.contents = kept
+            cleaned.append(msg)
+        # else: message had only dangling tool content -> drop it entirely
+    return cleaned
+
+
+class SanitizingCosmosHistoryProvider(CosmosHistoryProvider):
+    """CosmosHistoryProvider that repairs dangling tool calls on read.
+
+    See :func:`_sanitize_history`. Filtering on read (rather than mutating Cosmos)
+    keeps existing corrupted itineraries usable and guards against future
+    interruptions without a migration step.
+    """
+
+    async def get_messages(self, session_id, *, state=None, **kwargs):
+        messages = await super().get_messages(session_id, state=state, **kwargs)
+        return _sanitize_history(messages)
+
+
 class AGUISupervisor:
     """Adapts the per-request Concierge supervisor to the AG-UI protocol.
 
@@ -183,7 +242,7 @@ class Concierge:
 
         # --- per-itinerary chat memory -------------------------------------
         self._history_credential = DefaultAzureCredential()
-        self._history = CosmosHistoryProvider(
+        self._history = SanitizingCosmosHistoryProvider(
             source_id="concierge",
             endpoint=config.COSMOS_ENDPOINT,
             database_name=config.COSMOS_DATABASE,
