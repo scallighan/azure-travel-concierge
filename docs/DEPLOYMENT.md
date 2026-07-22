@@ -71,6 +71,13 @@ Identity** (no keys; Storage shared keys are disabled).
 > mock merchant keeps orders in-memory, to mirror the real VTS/VACP + acquirer
 > flow. Each must run as a **single replica**. Do not scale `vic-mock-mcp` or
 > `merchant-mock-mcp` beyond one instance.
+>
+> To survive restarts, vic-mock mirrors enrolled cards (network token + card
+> metadata, **never a PAN**) to the Cosmos `vicCards` container and reloads them
+> on startup — so a "card on file" doesn't vanish when the single replica
+> recycles. This is automatic in Azure (vic-mock gets `COSMOS_ENDPOINT` and uses
+> the shared workload identity). Locally it's optional: without `COSMOS_ENDPOINT`
+> vic-mock stays fully in-memory/self-contained.
 
 > **Foundry Toolbox** — the travel skills and payments agent consume the
 > `travel-concierge-toolbox` (WebIQ + VIC tools). Set `foundry_toolbox_name` /

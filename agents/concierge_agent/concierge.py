@@ -54,6 +54,45 @@ def _auto_approve_non_payment(function_call) -> bool:
     return getattr(function_call, "name", None) != PAYMENT_TOOL_NAME
 
 
+def _content_tokens(contents) -> list[str]:
+    """Render a compact, log-friendly description of message/update contents.
+
+    Surfaces the tool-call lifecycle (calls, results, HITL approval requests and
+    responses) so the container logs make it obvious what the harness is doing —
+    e.g. whether a payment approval was requested and whether the resumed run
+    actually executed the tool afterwards.
+    """
+    tokens: list[str] = []
+    for c in contents or []:
+        ctype = getattr(c, "type", None)
+        cid = getattr(c, "call_id", None)
+        short = f"#{cid[:8]}" if cid else ""
+        if ctype == "function_call":
+            tokens.append(f"call:{getattr(c, 'name', '?')}{short}")
+        elif ctype == "function_result":
+            tokens.append(f"result{short}")
+        elif ctype == "function_approval_request":
+            fc = getattr(c, "function_call", None)
+            tokens.append(f"approval_request:{getattr(fc, 'name', '?')}{short or ('#' + (getattr(fc, 'call_id', '') or '')[:8])}")
+        elif ctype == "function_approval_response":
+            approved = getattr(c, "approved", None)
+            fc = getattr(c, "function_call", None)
+            tokens.append(f"approval_response:{approved}{short or ('#' + (getattr(fc, 'call_id', '') or '')[:8])}")
+        elif ctype == "error" or getattr(c, "error", None):
+            tokens.append("error")
+        elif getattr(c, "text", None):
+            tokens.append("text")
+    return tokens
+
+
+def _describe_messages(messages) -> str:
+    """One-line summary of the content types across a list of messages."""
+    tokens: list[str] = []
+    for msg in messages or []:
+        tokens.extend(_content_tokens(getattr(msg, "contents", None)))
+    return ", ".join(tokens) if tokens else "empty"
+
+
 def _referenced_call_ids(messages) -> set[str]:
     """Collect every function-call id referenced by the given messages.
 
@@ -200,10 +239,43 @@ class AGUISupervisor:
         )
 
     async def run(self, messages=None, *, stream: bool = False, session: AgentSession | None = None, **_kwargs):
+        try:
+            user_id, itinerary_id = self._resolve_ids(session)
+        except Exception:
+            user_id = itinerary_id = "?"
+        incoming = _describe_messages(messages if isinstance(messages, list) else [messages] if messages else [])
+        logger.info(
+            "AG-UI run start user=%s itinerary=%s stream=%s incoming=[%s]",
+            user_id, itinerary_id, stream, incoming,
+        )
         agent = await self._build(session)
         if stream:
-            return agent.run(messages, stream=True, session=session)
-        return await agent.run(messages, stream=False, session=session)
+            return self._logged_stream(agent, messages, session, user_id, itinerary_id)
+        result = await agent.run(messages, stream=False, session=session)
+        logger.info(
+            "AG-UI run done user=%s itinerary=%s produced=[%s]",
+            user_id, itinerary_id, _describe_messages(getattr(result, "messages", None)),
+        )
+        return result
+
+    @staticmethod
+    async def _logged_stream(agent, messages, session, user_id: str, itinerary_id: str):
+        """Wrap the streamed run so each notable event is logged as it happens."""
+        seen: set[str] = set()
+        try:
+            async for update in agent.run(messages, stream=True, session=session):
+                for tok in _content_tokens(getattr(update, "contents", None)):
+                    # Log each distinct call/approval/result once (text chunks are noisy).
+                    if tok == "text" or tok in seen:
+                        continue
+                    seen.add(tok)
+                    logger.info("AG-UI event user=%s itinerary=%s %s", user_id, itinerary_id, tok)
+                yield update
+            logger.info("AG-UI stream done user=%s itinerary=%s events=[%s]",
+                        user_id, itinerary_id, ", ".join(sorted(seen)) or "text-only")
+        except Exception:
+            logger.exception("AG-UI stream failed user=%s itinerary=%s", user_id, itinerary_id)
+            raise
 
 
 class Concierge:

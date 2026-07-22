@@ -96,6 +96,10 @@ checkout runs `vic_create_instruction` → `vic_retrieve_credentials` →
 `merchant_authorize` → `vic_confirm_transaction`. `cart-tools` orchestrates both
 sequences. **VIC is the source of truth for the card** — Cosmos stores only the
 `vProvisionedTokenId` pointer, and card state is read back via `vic_get_card`.
+To stay restart-resistant, vic-mock also mirrors the enrolled card (token + card
+metadata, never a PAN) to the Cosmos `vicCards` container and reloads it on
+startup, so a "card on file" survives a single-replica recycle. Persistence is
+optional — without `COSMOS_ENDPOINT`, vic-mock runs fully in-memory.
 
 ## Mock merchant / acquirer (`merchant-mock`)
 

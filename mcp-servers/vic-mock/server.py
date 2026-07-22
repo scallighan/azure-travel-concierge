@@ -110,6 +110,128 @@ _transactions: dict[str, dict] = {}
 
 
 # ---------------------------------------------------------------------------
+# Optional durable card store (Cosmos DB).
+#
+# The mock is stateful and runs as a single replica, so a restart normally wipes
+# every enrolled card from memory — the user then sees their "card on file"
+# vanish and checkout fails. To make the demo restart-resistant, the card
+# relationship (token + card metadata, NOT a real PAN) is mirrored to a Cosmos
+# container and reloaded on startup. This is entirely optional: if COSMOS_ENDPOINT
+# is unset (local dev / docker-compose) the mock falls back to pure in-memory
+# state and behaves exactly as before.
+#
+# Only the enrolled-card chain is persisted (enough for vic_get_card +
+# instructions/credentials after a restart). Per-checkout mandates/instructions/
+# transactions stay in-memory — they are short-lived and safe to recreate.
+# ---------------------------------------------------------------------------
+COSMOS_ENDPOINT = os.getenv("COSMOS_ENDPOINT", "")
+COSMOS_DATABASE = os.getenv("COSMOS_DATABASE", "concierge")
+VIC_CARDS_CONTAINER = os.getenv("VIC_CARDS_CONTAINER", "vicCards")
+_cards_container = None
+
+
+def _init_card_store() -> None:
+    """Connect to Cosmos (Entra ID) if configured; otherwise stay in-memory."""
+    global _cards_container
+    if not COSMOS_ENDPOINT:
+        logger.info("Card persistence disabled (no COSMOS_ENDPOINT) — in-memory only.")
+        return
+    try:
+        from azure.cosmos import CosmosClient
+        from azure.identity import DefaultAzureCredential
+
+        client = CosmosClient(COSMOS_ENDPOINT, credential=DefaultAzureCredential())
+        db = client.get_database_client(COSMOS_DATABASE)
+        _cards_container = db.get_container_client(VIC_CARDS_CONTAINER)
+        logger.info("Card persistence enabled (db=%s, container=%s).", COSMOS_DATABASE, VIC_CARDS_CONTAINER)
+    except Exception:
+        logger.exception("Could not initialize Cosmos card store; continuing in-memory only.")
+        _cards_container = None
+
+
+def _card_doc(token_id: str) -> dict | None:
+    """Build the durable document for an enrolled card, or None if incomplete."""
+    token = _tokens.get(token_id)
+    card = _vic_cards.get(token_id)
+    if token is None or card is None:
+        return None
+    return {
+        "id": token_id,
+        "userId": token["user_id"],
+        "vProvisionedTokenId": token_id,
+        "cardId": card["card_id"],
+        "last4": token["last4"],
+        "brand": token["brand"],
+        "exp_month": token["exp_month"],
+        "exp_year": token["exp_year"],
+        "pan_enrollment_id": token.get("pan_enrollment_id", ""),
+        "token_status": token["status"],
+        "card_status": card["status"],
+        "updatedAt": _now_iso(),
+    }
+
+
+def _persist_card(token_id: str) -> None:
+    """Mirror an enrolled card to Cosmos (best-effort; never fails the tool)."""
+    if _cards_container is None:
+        return
+    doc = _card_doc(token_id)
+    if doc is None:
+        return
+    try:
+        _cards_container.upsert_item(doc)
+    except Exception:
+        logger.exception("Failed to persist card for token %s", token_id)
+
+
+def _delete_card(token_id: str, user_id: str) -> None:
+    """Remove a persisted card on deprovision (best-effort)."""
+    if _cards_container is None:
+        return
+    try:
+        _cards_container.delete_item(token_id, partition_key=user_id)
+    except Exception:
+        # Missing item is fine; log anything else.
+        logger.debug("No persisted card to delete for token %s", token_id)
+
+
+def _load_cards() -> None:
+    """Rehydrate the in-memory card chain from Cosmos on startup."""
+    if _cards_container is None:
+        return
+    try:
+        docs = list(_cards_container.read_all_items())
+    except Exception:
+        logger.exception("Failed to load persisted cards; starting empty.")
+        return
+    loaded = 0
+    with _lock:
+        for doc in docs:
+            token_id = doc.get("vProvisionedTokenId") or doc.get("id")
+            user_id = doc.get("userId")
+            if not token_id or not user_id:
+                continue
+            _tokens[token_id] = {
+                "user_id": user_id,
+                "pan_enrollment_id": doc.get("pan_enrollment_id", ""),
+                "last4": doc.get("last4"),
+                "brand": doc.get("brand"),
+                "exp_month": doc.get("exp_month"),
+                "exp_year": doc.get("exp_year"),
+                "status": doc.get("token_status", TOKEN_ACTIVE),
+            }
+            _vic_cards[token_id] = {
+                "card_id": doc.get("cardId"),
+                "user_id": user_id,
+                "status": doc.get("card_status", CARD_ACTIVE),
+            }
+            if doc.get("card_status", CARD_ACTIVE) == CARD_ACTIVE and doc.get("token_status", TOKEN_ACTIVE) == TOKEN_ACTIVE:
+                _user_cards[user_id] = token_id
+            loaded += 1
+    logger.info("Rehydrated %d card(s) from Cosmos.", loaded)
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 def _rand(n: int, alphabet: str = string.ascii_uppercase + string.digits) -> str:
@@ -355,6 +477,9 @@ def vic_enroll_card(v_provisioned_token_id: str) -> dict:
         # (this is the relationship the app stores a pointer to in Cosmos).
         _user_cards[token["user_id"]] = v_provisioned_token_id
 
+    # Mirror to the durable store (best-effort) so the card survives a restart.
+    _persist_card(v_provisioned_token_id)
+
     return {
         "success": True,
         "cardId": card_id,
@@ -418,8 +543,13 @@ def vic_deprovision_token(v_provisioned_token_id: str) -> dict:
         token["status"] = TOKEN_DELETED
         _vic_cards.pop(v_provisioned_token_id, None)
         # Drop the user->card relationship if it points at this token.
-        if token.get("user_id") and _user_cards.get(token["user_id"]) == v_provisioned_token_id:
-            _user_cards.pop(token["user_id"], None)
+        user_id = token.get("user_id")
+        if user_id and _user_cards.get(user_id) == v_provisioned_token_id:
+            _user_cards.pop(user_id, None)
+
+    # Remove the durable copy too (best-effort).
+    if token.get("user_id"):
+        _delete_card(v_provisioned_token_id, token["user_id"])
 
     return {
         "success": True,
@@ -675,4 +805,6 @@ def vic_health() -> dict:
 
 if __name__ == "__main__":
     logger.info("Starting Mock VIC MCP server on :%s/mcp", PORT)
+    _init_card_store()
+    _load_cards()
     mcp.run(transport="streamable-http")

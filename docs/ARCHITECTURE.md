@@ -153,6 +153,7 @@ separate agentic-commerce parties.
 | `itinerary`    | `/userId`     | Named itineraries — one document per itinerary (items day-by-day) |
 | `orders`       | `/userId`     | Completed purchases / booking confirmations    |
 | `chatHistory`  | `/session_id` | Per-itinerary chat memory (`CosmosHistoryProvider`) |
+| `vicCards`     | `/userId`     | Durable mock-card store for vic-mock (token + card metadata, never a PAN) so enrolled cards survive a restart |
 
 ## Payment data flow (card never touches the LLM)
 

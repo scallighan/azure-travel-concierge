@@ -60,6 +60,22 @@ resource "azurerm_container_app" "vic_mock" {
         name  = "PORT"
         value = "8080"
       }
+
+      # Durable card store — mirror enrolled cards to Cosmos so they survive a
+      # single-replica restart. vic-mock uses the shared workload identity,
+      # which already has Cosmos Data Contributor.
+      env {
+        name  = "COSMOS_ENDPOINT"
+        value = azurerm_cosmosdb_account.this.endpoint
+      }
+      env {
+        name  = "COSMOS_DATABASE"
+        value = azurerm_cosmosdb_sql_database.this.name
+      }
+      env {
+        name  = "VIC_CARDS_CONTAINER"
+        value = "vicCards"
+      }
     }
     min_replicas = 1
     max_replicas = 1

@@ -113,18 +113,27 @@ class PaymentsAgent:
         agent_reference = {"name": self.agent_name, "type": "agent_reference"}
         if self.agent_version:
             agent_reference["version"] = self.agent_version
+        logger.info("Calling Foundry payments agent %s (agent_reference=%s)",
+                    self.agent_name, agent_reference)
         response = self._openai.responses.create(
             input=prompt,
             extra_body={"agent_reference": agent_reference},
         )
-        return getattr(response, "output_text", "") or ""
+        text = getattr(response, "output_text", "") or ""
+        logger.info("Foundry payments agent %s responded (%d chars): %s",
+                    self.agent_name, len(text), text[:300].replace("\n", " "))
+        return text
 
     async def invoke(self, query: str, user_id: str) -> str:
         prompt = f"user_id: {user_id}\n\n{query}"
+        logger.info("Payments agent invoke start (user_id=%s, enabled=%s, query=%r)",
+                    user_id, self.enabled, query[:200])
         try:
-            return await asyncio.to_thread(self._invoke_sync, prompt)
+            result = await asyncio.to_thread(self._invoke_sync, prompt)
+            logger.info("Payments agent invoke complete (user_id=%s, %d chars)", user_id, len(result))
+            return result
         except Exception as exc:  # pragma: no cover
-            logger.exception("Payments agent invocation failed")
+            logger.exception("Payments agent invocation failed (user_id=%s)", user_id)
             return f"Payment processing is unavailable right now: {exc}"
 
 
@@ -139,6 +148,10 @@ async def payments_agent(
     user_id: Annotated[str, Field(description="The user's unique id.")],
 ) -> str:
     """Delegate a confirmed purchase or checkout step to the secure Foundry payments agent (VIC)."""
+    logger.info("payments_agent tool executing post-approval (user_id=%s, query=%r)", user_id, query[:200])
     if _instance is None or not _instance.enabled:
+        logger.warning("payments_agent tool called but Foundry payments agent is not available "
+                        "(instance=%s, enabled=%s)", _instance is not None,
+                        getattr(_instance, "enabled", None))
         return "Payments agent is not available."
     return await _instance.invoke(query, user_id)

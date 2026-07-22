@@ -45,6 +45,9 @@ locals {
     orders       = "/userId"
     # Backs the MAF CosmosHistoryProvider (per-itinerary chat memory).
     chatHistory = "/session_id"
+    # Durable mock card store for vic-mock (token + card metadata, never a PAN)
+    # so enrolled cards survive a mock restart.
+    vicCards = "/userId"
   }
 }
 
