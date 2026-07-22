@@ -9,9 +9,22 @@ Find and compare places to stay and hand a shortlist back for the itinerary.
 
 ## Tools to use
 
-Use the **travel-concierge-toolbox** tools (WebIQ web intelligence) when available
-to look up current lodging options; otherwise fall back to the built-in **web
-search** tool. Do not fabricate properties or prices — look them up.
+Use the **travel-concierge-toolbox** for real lodging data. The toolbox exposes a
+discovery interface, not one tool per site:
+
+1. Call **`tool_search`** with a broad query like `web`, `webiq`, or `search` to
+   find the web-intelligence tools (do **not** search for `hotel` or `lodging` —
+   those return "no tools matched", which is expected and does **not** mean the
+   toolbox is down).
+2. Use **`webiq___web`** to find current properties and prices, then
+   **`webiq___browse`** to open a listing and read specifics.
+
+Only if the toolbox itself fails to connect should you fall back to the built-in
+**web search** tool. Do not fabricate properties or prices — look them up.
+
+A tool call awaiting a one-time human approval is **normal HITL behavior, not an
+error**. Do not call the toolbox "unavailable" or fall back to web search just
+because an approval is pending — wait for it, then proceed.
 
 ## Method
 

@@ -6,6 +6,7 @@ import { VicCardModal } from "./components/VicCardModal";
 import { config, DEMO_USER_ID } from "./lib/config";
 import {
   getCart,
+  getCardStatus,
   getItinerary,
   listItineraries,
   createItinerary,
@@ -44,6 +45,9 @@ export default function App({ userId, userName }: { userId?: string; userName?: 
 
   const refresh = useCallback(() => {
     getCart(uid).then(setCart).catch(() => {});
+    getCardStatus(uid)
+      .then((s) => setCardOnFile(s.has_card ? s.last4 ?? "••••" : null))
+      .catch(() => {});
     if (currentId) {
       getItinerary(uid, currentId).then(setItinerary).catch(() => {});
     } else {

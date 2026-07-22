@@ -43,13 +43,17 @@ exceed the mandate is declined.
 
 1. **Confirm the order.** Restate exactly what will be purchased (item, price,
    date) and get an explicit "yes".
-2. **Delegate to payments.** Call the `payments_agent` tool with the user's id and
-   a clear description of the confirmed purchase. The payments agent will:
-   - check whether the user has a payment card on file (if not, it will tell the
-     user to add one securely via the UI — relay that and stop);
+2. **Verify a card is on file.** Call the `check_payment_card` tool with the user's
+   id BEFORE any purchase. If it reports **no card on file**, tell the user they
+   need to add a payment card — ask them to click **"Add card"** in the payment
+   panel to add one securely — and **STOP** (do not call `payments_agent`). Once
+   they confirm a card is added, re-run this check and continue.
+3. **Delegate to payments.** With a card confirmed, call the `payments_agent` tool
+   with the user's id and a clear description of the confirmed purchase. The
+   payments agent will:
    - complete the purchase under a mandate and return an order id / total, or a
      decline reason (e.g. the amount exceeded the spending mandate).
-3. **Report back.** Relay the order id, total and outcome clearly and concisely,
+4. **Report back.** Relay the order id, total and outcome clearly and concisely,
    and update the active itinerary (via `save_itinerary`) to reflect the booked
    item. If declined, relay the reason plainly.
 

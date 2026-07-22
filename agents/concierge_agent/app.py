@@ -116,6 +116,17 @@ async def vic_iframe_config(user_id: str):
     return await call_mcp_tool(config.CART_MCP_URL, "cart_get_vic_iframe_config", {"user_id": user_id})
 
 
+@app.get("/api/vic/card-status/{user_id}")
+async def vic_card_status(user_id: str):
+    """Whether the user has a payment card on file (reads the Cosmos profile)."""
+    if not config.ENABLE_VIC:
+        return {"has_card": False, "enabled": False}
+    result = await call_mcp_tool(
+        config.CART_MCP_URL, "cart_check_user_has_payment_card", {"user_id": user_id}
+    )
+    return {"enabled": True, **result}
+
+
 @app.post("/api/vic/onboard-card")
 async def vic_onboard_card(request: Request):
     """Card data goes straight to the (mock) tokenization tool — never to the model."""

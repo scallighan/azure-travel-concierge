@@ -31,8 +31,26 @@ class _ToolboxAuth(httpx.Auth):
         yield request
 
 
+def _latest_version(versions) -> str:
+    """Pick the highest version, preferring numeric ordering, else lexical."""
+    labels = [str(getattr(v, "version", v)) for v in versions]
+    labels = [v for v in labels if v]
+    if not labels:
+        return ""
+    numeric = [v for v in labels if v.isdigit()]
+    if numeric:
+        return max(numeric, key=int)
+    return max(labels)
+
+
 def resolve_version(credential=None) -> str:
-    """Return the configured Toolbox version, else the toolbox's default version."""
+    """Return the configured Toolbox version, else the latest published version.
+
+    The toolbox's ``default_version`` may lag behind the newest published version
+    (which is where WebIQ and the VIC payment tools are registered), so when no
+    explicit version is configured we pin to the latest available version and only
+    fall back to ``default_version`` if the version list is unavailable.
+    """
     if config.FOUNDRY_TOOLBOX_VERSION:
         return config.FOUNDRY_TOOLBOX_VERSION
     from azure.ai.projects import AIProjectClient
@@ -43,6 +61,13 @@ def resolve_version(credential=None) -> str:
         with AIProjectClient(
             endpoint=config.PROJECT_ENDPOINT, credential=credential, allow_preview=True
         ) as project:
+            try:
+                latest = _latest_version(project.toolboxes.list_versions(config.FOUNDRY_TOOLBOX_NAME))
+                if latest:
+                    logger.info("Resolved Toolbox '%s' to latest version %s", config.FOUNDRY_TOOLBOX_NAME, latest)
+                    return latest
+            except Exception:  # noqa: BLE001 - fall back to default version below
+                logger.warning("Could not list Toolbox versions; falling back to default version", exc_info=True)
             tb = project.toolboxes.get(config.FOUNDRY_TOOLBOX_NAME)
             return getattr(tb, "default_version", None) or getattr(tb, "version", "") or ""
     finally:

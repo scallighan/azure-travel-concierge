@@ -291,6 +291,7 @@ class Concierge:
             *skill_tools,
             *([payment_tool] if payment_tool else []),
             itinerary_tools.save_itinerary,
+            itinerary_tools.check_payment_card,
         ]
         logger.info("Concierge started (payments_foundry=%s, toolbox=%s, skills_dir=%s).",
                     self._payments.enabled, toolbox_tool is not None, SKILLS_DIR)

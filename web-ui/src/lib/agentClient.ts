@@ -215,6 +215,14 @@ export async function deleteItinerary(userId: string, itineraryId: string): Prom
   return Boolean(data.deleted);
 }
 
+export async function getCardStatus(
+  userId: string,
+): Promise<{ enabled: boolean; has_card?: boolean; last4?: string; brand?: string }> {
+  const r = await fetch(`${base}/api/vic/card-status/${encodeURIComponent(userId)}`);
+  if (!r.ok) return { enabled: false };
+  return r.json();
+}
+
 export async function onboardCard(payload: {
   user_id: string;
   card_number: string;
