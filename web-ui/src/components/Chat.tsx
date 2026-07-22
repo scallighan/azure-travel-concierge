@@ -3,10 +3,10 @@ import { Message, ChatMessage } from "./Message";
 import { streamChat, resumeChat, AgentInterrupt } from "../lib/agentClient";
 
 const SUGGESTIONS = [
-  "Plan a 3-day trip to Tokyo",
+  "Plan a 5-day trip: Chicago → Tokyo, ~Oct 20, 2 travelers, mid-range",
+  "Find flights from SFO to Paris, Sept 10–17, 1 traveler",
+  "Find me mid-range hotels in Kyoto for 3 nights under $200/night",
   "What are the visa requirements for Japan?",
-  "Find me hotels in Kyoto under $200",
-  "Add the Tokyo flight to my cart",
 ];
 
 export function Chat({
@@ -100,7 +100,12 @@ export function Chat({
         {messages.length === 0 && (
           <div className="welcome">
             <h2>👋 Your AI Travel Concierge</h2>
-            <p>Plan trips, check visa requirements, and book with a card on file.</p>
+            <p>
+              I plan and mock-book <strong>flights &amp; hotels</strong>, and add
+              food &amp; activities to your itinerary. To start fast, tell me your{" "}
+              <strong>origin, destination, dates, travelers</strong> and{" "}
+              <strong>budget</strong>.
+            </p>
             <div className="suggestions">
               {SUGGESTIONS.map((s) => (
                 <button key={s} onClick={() => send(s)}>
@@ -140,7 +145,7 @@ export function Chat({
       <div className="chat-input">
         <input
           value={input}
-          placeholder={pending.length ? "Approve or reject the pending action…" : "Ask about destinations, visas, hotels…"}
+          placeholder={pending.length ? "Approve or reject the pending action…" : "e.g. Chicago → Tokyo, ~Oct 20, 2 travelers, mid-range…"}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send(input)}
           disabled={busy || pending.length > 0}

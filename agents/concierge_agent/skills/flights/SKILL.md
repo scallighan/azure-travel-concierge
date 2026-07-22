@@ -27,7 +27,7 @@ flight numbers — look them up.
    times, number of stops, approximate fare, and a booking link when available.
 4. **Hand back.** Do **not** purchase anything — purchasing is the checkout skill's
    job. Summarize the recommended option so the concierge can save it to the active
-   itinerary.
+   itinerary as a `flight` item (flights are bookable at checkout).
 
 ## Output
 

@@ -1,14 +1,24 @@
 ---
 name: checkout
-description: Complete a purchase the traveler has explicitly confirmed (flights, hotels, tickets) through the secure payments agent. Use only after the user confirms exactly what to buy; never handle card details in chat.
+description: Complete a purchase the traveler has explicitly confirmed (flights and hotels only) through the secure payments agent. Use only after the user confirms exactly what to buy; never handle card details in chat.
 ---
 
 # Checkout skill
 
-Turn a confirmed selection into a completed purchase — safely — by delegating to
-the secure **payments agent** (`payments_agent` tool), which talks to the payment
-provider (Visa Intelligent Commerce, VIC). This skill is about the *workflow and
-guardrails*; the actual payment is executed by the payments agent tool.
+Turn a confirmed **flight or hotel** selection into a completed (mock) purchase —
+safely — by delegating to the secure **payments agent** (`payments_agent` tool),
+which talks to the payment provider (Visa Intelligent Commerce, VIC). This skill
+is about the *workflow and guardrails*; the actual payment is executed by the
+payments agent tool.
+
+## What can be checked out
+
+- **Only flights and hotels are booked.** These are the sole purchasable items.
+- **Food & entertainment are never checked out.** Restaurants, attractions and
+  activities are planned suggestions saved to the itinerary as `activity` items,
+  not purchases. Never send them to `payments_agent`. If the user asks to "book"
+  a restaurant or activity, explain that those are added to the itinerary as
+  activities and aren't booked here.
 
 ## How VIC payments work (context)
 

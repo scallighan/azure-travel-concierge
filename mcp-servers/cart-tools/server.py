@@ -54,10 +54,23 @@ def cart_view_cart(user_id: str) -> dict:
 @mcp.tool()
 def cart_add_to_cart(user_id: str, items: list[dict]) -> dict:
     """
-    Add one or more items to the cart. Each item needs a title and price; set
-    item_type to "product", "hotel" or "flight" and include the type-specific
-    id (asin/hotel_id/flight_id). Args: user_id, items.
+    Add one or more flight or hotel items to the cart. Each item needs a title
+    and price; set item_type to "hotel" or "flight" and include the type-specific
+    id (hotel_id/flight_id). Only flights and hotels are bookable — food and
+    entertainment are non-booked activities and must not be added here.
+    Args: user_id, items.
     """
+    bookable = {"flight", "hotel"}
+    rejected = [it for it in items if str(it.get("item_type", "")).lower() not in bookable]
+    if rejected:
+        return {
+            "success": False,
+            "error": (
+                "Only flights and hotels can be booked. Food & entertainment are "
+                "non-booked activities — add them to the itinerary instead."
+            ),
+            "rejected": [it.get("title") or it.get("item_type") for it in rejected],
+        }
     added = [db.add_cart_item(user_id, it) for it in items]
     return {"success": True, "added": len(added), "items": added}
 

@@ -24,7 +24,7 @@ search** tool. Do not fabricate properties or prices — look them up.
    Maps** link (`https://www.bing.com/maps?q=<url-encoded name and address>`).
 4. **Hand back.** Do **not** book or purchase — the checkout skill handles that.
    Summarize the recommended property so the concierge can save it to the active
-   itinerary.
+   itinerary as a `hotel` item (hotels are bookable at checkout).
 
 ## Output
 
