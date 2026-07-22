@@ -213,8 +213,9 @@ export async function resumeChat(
   );
 }
 
-export async function getOrders(userId: string): Promise<Order[]> {
-  const r = await fetch(`${base}/api/orders/${userId}`);
+export async function getOrders(userId: string, itineraryId?: string): Promise<Order[]> {
+  const qs = itineraryId ? `?itinerary_id=${encodeURIComponent(itineraryId)}` : "";
+  const r = await fetch(`${base}/api/orders/${encodeURIComponent(userId)}${qs}`);
   const data = await r.json();
   return (data.orders as Order[]) ?? [];
 }

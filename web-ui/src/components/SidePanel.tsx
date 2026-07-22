@@ -56,7 +56,7 @@ export function SidePanel({
 
       <section>
         <h4>🧾 Past Orders</h4>
-        {orders.length === 0 && <p className="empty">No orders yet.</p>}
+        {orders.length === 0 && <p className="empty">No orders for this trip yet.</p>}
         {orders.map((o, i) => (
           <div className="panel-card" key={o.order_id ?? i}>
             <strong>{o.order_id ?? "Order"}</strong>

@@ -164,14 +164,20 @@ class CosmosManager:
         await self.orders.upsert_item(doc)
         return doc
 
-    async def list_orders(self, user_id: str) -> list[dict]:
-        """Return the user's orders, most recent first."""
+    async def list_orders(self, user_id: str, itinerary_id: str | None = None) -> list[dict]:
+        """Return the user's orders, most recent first.
+
+        When ``itinerary_id`` is given, only orders recorded for that itinerary are
+        returned, so the UI's Past Orders panel stays relevant to the selected trip.
+        """
+        query = "SELECT * FROM c WHERE c.userId = @u"
+        parameters = [{"name": "@u", "value": user_id}]
+        if itinerary_id:
+            query += " AND c.itinerary_id = @i"
+            parameters.append({"name": "@i", "value": itinerary_id})
         docs = [
             o
-            async for o in self.orders.query_items(
-                query="SELECT * FROM c WHERE c.userId = @u",
-                parameters=[{"name": "@u", "value": user_id}],
-            )
+            async for o in self.orders.query_items(query=query, parameters=parameters)
         ]
         docs.sort(key=lambda d: d.get("createdAt", ""), reverse=True)
         return docs

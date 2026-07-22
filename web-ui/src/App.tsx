@@ -44,7 +44,7 @@ export default function App({ userId, userName }: { userId?: string; userName?: 
   }, [uid]);
 
   const refresh = useCallback(() => {
-    getOrders(uid).then(setOrders).catch(() => {});
+    getOrders(uid, currentId ?? undefined).then(setOrders).catch(() => {});
     getCardStatus(uid)
       .then((s) => setCardOnFile(s.has_card ? s.last4 ?? "••••" : null))
       .catch(() => {});

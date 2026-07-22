@@ -130,10 +130,16 @@ async def get_history(user_id: str, itinerary_id: str):
 
 
 @app.get("/api/orders/{user_id}")
-async def get_orders(user_id: str):
-    """The user's past orders (completed purchases), most recent first."""
-    orders = await concierge.cosmos.list_orders(user_id) if concierge.cosmos else []
-    return {"user_id": user_id, "orders": orders}
+async def get_orders(user_id: str, itinerary_id: str | None = None):
+    """The user's past orders (completed purchases), most recent first.
+
+    Pass ``?itinerary_id=`` to scope the list to a single trip so the UI's Past
+    Orders panel stays relevant to the selected itinerary.
+    """
+    orders = (
+        await concierge.cosmos.list_orders(user_id, itinerary_id) if concierge.cosmos else []
+    )
+    return {"user_id": user_id, "itinerary_id": itinerary_id, "orders": orders}
 
 
 @app.get("/api/vic/iframe-config/{user_id}")

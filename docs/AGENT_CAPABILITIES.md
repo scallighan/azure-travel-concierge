@@ -134,6 +134,6 @@ Card and structured-data operations bypass the model entirely:
 | `PATCH  /api/itinerary/{user_id}/{itinerary_id}`  | Rename an itinerary                             |
 | `DELETE /api/itinerary/{user_id}/{itinerary_id}`  | Delete an itinerary (+ its chat history)        |
 | `GET    /api/history/{user_id}/{itinerary_id}`    | Persisted chat transcript (restored when switching itineraries / reloading) |
-| `GET    /api/orders/{user_id}`                    | Past orders (completed purchases)               |
+| `GET    /api/orders/{user_id}`                    | Past orders (completed purchases); `?itinerary_id=` scopes to the selected trip |
 | `GET    /api/vic/iframe-config/{user_id}`         | Mock card-capture iframe config                 |
 | `POST   /api/vic/onboard-card`                    | Direct card tokenization (never sent to LLM)    |
