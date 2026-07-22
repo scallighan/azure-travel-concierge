@@ -6,7 +6,7 @@ const SUGGESTIONS = [
   "Plan a 5-day trip: Chicago → Tokyo, ~Oct 20, 2 travelers, mid-range",
   "Find flights from SFO to Paris, Sept 10–17, 1 traveler",
   "Find me mid-range hotels in Kyoto for 3 nights under $200/night",
-  "What are the visa requirements for Japan?",
+  "Add a day of things to do in Rome to my itinerary",
 ];
 
 export function Chat({

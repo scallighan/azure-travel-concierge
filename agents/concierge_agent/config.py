@@ -32,10 +32,6 @@ class Config:
     # Container backing the MAF CosmosHistoryProvider (partition /session_id).
     COSMOS_HISTORY_CONTAINER = os.getenv("COSMOS_HISTORY_CONTAINER", "chatHistory")
 
-    # Azure AI Search (Visa documentation knowledge base)
-    SEARCH_ENDPOINT = os.getenv("SEARCH_ENDPOINT", "")
-    SEARCH_INDEX_NAME = os.getenv("SEARCH_INDEX_NAME", "visa-documentation")
-
     ENABLE_VIC = os.getenv("ENABLE_VIC_INTEGRATION", "true").lower() == "true"
 
     @property

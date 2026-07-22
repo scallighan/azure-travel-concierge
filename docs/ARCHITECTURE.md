@@ -26,15 +26,14 @@ blueprint, built on **Azure AI Foundry** and the **Microsoft Agent Framework**.
                      │    │   flights · hotel-booking ·      │
                      │    │   food-entertainment · checkout  │
                      │    ├─ save_itinerary (fn tool)        │
-                     │    ├─ search_visa_documentation (fn)  │
                      │    └─ payments_agent (Foundry-hosted) │
-                     └──┬────────────┬───────────┬──────────┘
-                        │ MCP        │ direct SDK │ MCP (Toolbox, AAD)
-              ┌─────────▼────┐ ┌─────▼──────┐ ┌──▼───────────────────┐
-              │ cart-tools   │ │ Azure AI   │ │ Foundry Toolbox      │
-              │ MCP (ACA)    │ │ Search     │ │ travel-concierge-... │
-              │ internal     │ │ (visa docs)│ │  WebIQ + VIC tools   │
-              └────┬─────────┘ └────────────┘ └──────────────────────┘
+                     └──┬────────────────────────┬──────────┘
+                        │ MCP                     │ MCP (Toolbox, AAD)
+              ┌─────────▼────┐          ┌─────────▼────────────┐
+              │ cart-tools   │          │ Foundry Toolbox      │
+              │ MCP (ACA)    │          │ travel-concierge-... │
+              │ internal     │          │  WebIQ + VIC tools   │
+              └────┬─────────┘          └──────────────────────┘
                    │ MCP           ┌──────────────┐
             ┌──────▼───────┐       │ Cosmos DB    │  named multi-itineraries
             │ vic-mock     │       │ (NoSQL)      │  + per-itinerary chat
@@ -44,7 +43,9 @@ blueprint, built on **Azure AI Foundry** and the **Microsoft Agent Framework**.
                                    └──────────────┘
 
   Foundry (gpt-5.4 + text-embedding) · Cosmos · Storage · Key Vault (all
-  private-endpoint only) · Log Analytics / App Insights.
+  private-endpoint only) · Log Analytics / App Insights. Azure AI Search
+  (visa-documentation index) is provisioned and fed by the search-ingestion
+  pipeline, but is not queried by the agent at runtime.
   All service-to-service auth via a User-Assigned Managed Identity (Entra RBAC).
   travel-tools MCP is still deployed but superseded by the Toolbox's WebIQ tools.
 ```
@@ -90,8 +91,6 @@ Shared tools passed to the harness:
   Toolbox/project is unavailable it degrades to a local sub-agent backed by the
   Toolbox or the `cart-tools` MCP.
 - **`save_itinerary`** — persists the active itinerary's items to Cosmos.
-- **`search_visa_documentation`** — retrieval-grounded visa/entry answers from
-  Azure AI Search.
 
 Conversation memory is a `CosmosHistoryProvider` scoped per itinerary via
 `AgentSession(session_id=f"{user_id}:{itinerary_id}")`, so each **named

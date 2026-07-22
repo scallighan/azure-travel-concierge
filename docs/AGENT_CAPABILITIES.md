@@ -35,10 +35,6 @@ search** tool.
 | Foundry Toolbox (MCP)         | WebIQ lookups for the travel skills + VIC payment tools (AAD-authed)|
 | `payments_agent`              | **Foundry-hosted** (portal-visible) checkout agent consuming the Toolbox's VIC tools; falls back to a local Toolbox/`cart-tools` sub-agent |
 | `save_itinerary`              | Persist the active itinerary's items to Cosmos DB                    |
-| `search_visa_documentation`   | Retrieval-grounded visa/entry answers from **Azure AI Search**      |
-
-Visa answers are **retrieval-grounded**: the `visa-documentation` AI Search index
-is populated from `search-ingestion/visa-documentation/*.md`.
 
 ## Supporting MCP servers
 

@@ -31,7 +31,6 @@ from config import config
 from cosmos_manager import CosmosManager
 from payments_agent import PaymentsAgent, payments_agent, set_payments
 from prompts import PAYMENTS_AGENT_PROMPT, SUPERVISOR_PROMPT
-from search_tool import search_visa_documentation
 from toolbox import build_toolbox_tool, resolve_version
 
 logger = logging.getLogger("concierge")
@@ -44,7 +43,29 @@ logger = logging.getLogger("concierge")
 SKILLS_DIR = Path(__file__).resolve().parent / "skills"
 
 
-def _sanitize_history(messages: list) -> list:
+def _referenced_call_ids(messages) -> set[str]:
+    """Collect every function-call id referenced by the given messages.
+
+    Looks at ``call_id`` on function_call/function_result content and the nested
+    ``function_call.call_id`` carried by approval request/response content. Used
+    to protect a call the current run is actively resolving (a HITL approval /
+    resume) from being sanitized away as if it were stale — on resume the harness
+    supplies the matching result in-run, so the (still result-less) call in
+    Cosmos history must be preserved.
+    """
+    ids: set[str] = set()
+    for msg in messages or []:
+        for content in getattr(msg, "contents", None) or []:
+            cid = getattr(content, "call_id", None)
+            if cid:
+                ids.add(cid)
+            nested = getattr(getattr(content, "function_call", None), "call_id", None)
+            if nested:
+                ids.add(nested)
+    return ids
+
+
+def _sanitize_history(messages: list, preserve_call_ids: frozenset[str] | set[str] = frozenset()) -> list:
     """Drop tool-call content that has no matching result.
 
     An interrupted run (e.g. a human-in-the-loop tool approval left unanswered,
@@ -54,6 +75,13 @@ def _sanitize_history(messages: list) -> list:
     function call ...`` and every subsequent turn fails. We repair the transcript
     on read by keeping only tool-related content whose ``call_id`` has both a call
     and a result, then dropping any messages left empty.
+
+    ``preserve_call_ids`` are call ids the current run is actively resolving (an
+    in-flight approval/resume). Their call is legitimately result-less in stored
+    history because the result is produced during this very run — dropping it
+    would orphan the result the harness is about to append and trigger the mirror
+    error ``400 - No tool call found for function call output ...``. So we treat
+    those ids as complete and keep them.
     """
     call_ids: set[str] = set()
     result_ids: set[str] = set()
@@ -66,7 +94,7 @@ def _sanitize_history(messages: list) -> list:
                 call_ids.add(call_id)
             elif content.type == "function_result":
                 result_ids.add(call_id)
-    complete = call_ids & result_ids
+    complete = (call_ids & result_ids) | set(preserve_call_ids)
     tool_types = {"function_call", "function_result", "function_approval_request", "function_approval_response"}
 
     cleaned: list = []
@@ -91,16 +119,19 @@ def _sanitize_history(messages: list) -> list:
 
 
 class SanitizingCosmosHistoryProvider(CosmosHistoryProvider):
-    """CosmosHistoryProvider that repairs dangling tool calls on read.
+    """CosmosHistoryProvider that repairs dangling tool calls when loading history.
 
-    See :func:`_sanitize_history`. Filtering on read (rather than mutating Cosmos)
+    See :func:`_sanitize_history`. Filtering on load (rather than mutating Cosmos)
     keeps existing corrupted itineraries usable and guards against future
-    interruptions without a migration step.
+    interruptions without a migration step. Sanitization happens in ``before_run``
+    (not ``get_messages``) so it can consult the current run's input messages and
+    preserve any call the run is actively resolving via a HITL approval/resume.
     """
 
-    async def get_messages(self, session_id, *, state=None, **kwargs):
-        messages = await super().get_messages(session_id, state=state, **kwargs)
-        return _sanitize_history(messages)
+    async def before_run(self, *, agent, session, context, state):
+        history = await self.get_messages(context.session_id, state=state)
+        preserve = _referenced_call_ids(context.input_messages)
+        context.extend_messages(self, _sanitize_history(history, preserve))
 
 
 class AGUISupervisor:
@@ -260,7 +291,6 @@ class Concierge:
             *skill_tools,
             *([payment_tool] if payment_tool else []),
             itinerary_tools.save_itinerary,
-            search_visa_documentation,
         ]
         logger.info("Concierge started (payments_foundry=%s, toolbox=%s, skills_dir=%s).",
                     self._payments.enabled, toolbox_tool is not None, SKILLS_DIR)
