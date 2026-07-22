@@ -10,7 +10,7 @@ blueprint, built entirely with Microsoft & Azure products:
 - **Azure AI Foundry** (`gpt-5.4` + embeddings) as the model backbone, plus a
   **Foundry-hosted Payments agent** (visible in the portal) that consumes a
   **Foundry Toolbox** wrapping the mock VIC to complete purchases
-- **Azure AI Search** — a `visa-documentation` index populated by the
+- **Azure AI Search** — a `documentation` index populated by the
   search-ingestion pipeline (provisioned infrastructure; not queried by the
   agent at runtime)
 - **Azure Cosmos DB for NoSQL** — cart / profile / orders, **named
